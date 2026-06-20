@@ -1,43 +1,31 @@
 # Database Design
 
-This document describes the target enterprise database design (PostgreSQL via Prisma), which translates the flat Google Sheets structure into a normalized, relational architecture.
+This document describes the target enterprise database design (PostgreSQL via Prisma), designed to preserve the exact logic of the Google Apps Script production system while scaling.
 
-## Strategy
-- **Primary Keys**: UUID-based IDs (`@db.Uuid`) for all tables to ensure global uniqueness and secure scaling across distributed environments.
-- **Foreign Keys**: Enforced at the database level to maintain strict referential integrity (e.g., deleting a Machine cascade-deletes or blocks depending on linked Breakdowns).
-- **Extensibility**: Advanced types like `Json` are used for flexible storage (e.g., Audit logs, checkpoint results) while core dimensions are strictly typed.
+## Architecture Philosophy
+- **Migration First**: No redesign of core concepts.
+- **Primary Keys**: UUID-based IDs (`@db.Uuid`) maintained for all tables.
+- **Target Production**: PostgreSQL on AWS RDS. Current development runs locally but preserves a strict PostgreSQL schema to avoid redesigning around SQLite limitations.
+
+## Future Hierarchy Structure
+The database enforces the following strict hierarchy:
+`Plant → Department → Section → Machine → Unit`
 
 ## Core Schema Entities
-
-### 1. User & Authentication Layer
-- **`User`**: Core user accounts. Linked to `Role` and optionally `Plant`. Tracks login details (hashed passwords).
-- **`Role`**: Master list of roles (Super Admin, Supervisor, Technician).
-- **`Permission`**: Granular system permissions (e.g., `BREAKDOWN_APPROVE`, `USER_MANAGE`).
-- **`RolePermission`**: Junction table mapping multiple permissions to roles.
-
-### 2. Master Data (Hierarchical Structure)
-- **`Plant`**: Top-level factory location.
-- **`Department`**: Groups of sections within a Plant.
-- **`Section`**: Specific zones within a Department.
-- **`MachineCategory`**: Classifications (Printing, Corrugation).
-- **`Machine`**: The physical equipment. Linked to Category, Section, and Plant.
-- **`Unit`**: Sub-units within a Machine.
-- **`SubAssembly` / `Component`**: Deeper levels for precise breakdown tracking.
-
-### 3. Lookup Masters
-- **`BreakdownCategory`**, **`ProblemCategory`**, **`RootCauseCategory`**, **`ActionTakenCategory`**: Standardized lists extracted from Apps Script dropdowns.
-- **`ShiftMaster`**: Defines standard working shifts (First, Second, Third) and their time boundaries.
-- **`HolidayCalendar`**: Used for accurate MTTR/Downtime calculations excluding non-working days.
-
-### 4. Breakdown Module
-- **`BreakdownLog`**: The central transactional table. 
-  - Captures `startTime`, `endTime`, `durationMin` (calculated), and relationships to `Machine`, `User` (reporter and approver), and master lookups.
-  - State managed via a `status` field (`PENDING_REVIEW`, `APPROVED`, `REJECTED`).
-- **`BreakdownSparePartUsed`**: Tracks inventory consumption against specific breakdowns.
-
-### 5. Preventive Maintenance (PM) Module
-- **`PmTask`**: Master definitions of maintenance routines and frequencies.
-- **`PmSchedule`**: Transactional instances of PM tasks, tracking due dates, completion dates, and check-list results (stored as `Json`).
-
-### 6. Audit & Tracking
-- **`AuditLog`**: Centralized, immutable ledger for all CRUD events across critical tables. See `AUDIT_LOG_DESIGN.md`.
+- **Users**: Authentication and profile data.
+- **Roles**: Master definitions.
+- **Permissions**: Granular system permissions.
+- **Plants**: Top-level hierarchy.
+- **Departments**: Functional groupings.
+- **Sections**: Sub-groupings within departments.
+- **Machines**: Master equipment list.
+- **Units**: Specific components of a machine.
+- **Breakdowns**: Core transactional logs.
+- **PM_Schedules**: Defined maintenance routines and frequencies.
+- **PM_Execution**: Logs of completed schedules.
+- **Machine_History**: Aggregated view for machine lifecycles.
+- **Audit_Logs**: Immutable tracking of all system changes.
+- **Notifications**: Internal alerts.
+- **Reports**: Stored reporting criteria or scheduled reports.
+- **Attachments**: Future support for media uploads.
+- **Configuration**: System-wide settings.

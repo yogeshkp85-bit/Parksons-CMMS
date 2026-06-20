@@ -1,41 +1,22 @@
 # Audit Log Design
 
-This document details the strategy for recording system changes to ensure accountability, compliance, and accurate historical tracking.
+This document details the tracking strategy to maintain an immutable ledger of all system actions. 
 
-## Objective
-To maintain an immutable, searchable ledger of all critical actions performed by users in the system, specifically targeting breakdown edits, approvals, and master data changes.
+## Tracking Principles
+- **Immutable Ledger**: Audit logs should **never** be physically deleted.
+- **Database Strategy**: Uses `JSONB` native to PostgreSQL to cleanly store complex snapshot data.
 
-## Schema Definition
+## Recorded Data Points
+For every critical action, the system records:
+1. **Who performed action**: Foreign key `userId`.
+2. **When**: Precise timestamp.
+3. **Old value**: The state before the change.
+4. **New value**: The state after the change.
+5. **Affected table**: The entity modified (e.g., Breakdown, User).
+6. **Affected record ID**: The specific UUID or Reference ID.
+7. **Action type**: E.g., `CREATE`, `UPDATE`, `DELETE`, `APPROVE`, `LOGIN`.
 
-The `AuditLog` table uses a flexible structure, leveraging PostgreSQL's `JSONB` for payload storage.
-
-| Field | Type | Description |
-|---|---|---|
-| `id` | UUID | Primary Key. |
-| `userId` | UUID | Foreign Key linking to the User who performed the action. |
-| `module` | VARCHAR | The subsystem involved (e.g., "Breakdown Log", "Machine Master", "User Auth"). |
-| `action` | VARCHAR | The action type (`CREATE`, `UPDATE`, `DELETE`, `LOGIN`, `APPROVE`). |
-| `targetId` | VARCHAR | The primary key (UUID) or reference number (e.g., PKS-2026...) of the affected record. |
-| `oldValue` | JSON | A JSON snapshot of the record's state *before* the action (null for CREATE). |
-| `newValue` | JSON | A JSON snapshot of the record's state *after* the action (null for DELETE). |
-| `ipAddress` | VARCHAR | The IP address of the requesting client. |
-| `userAgent` | VARCHAR | Browser/Device information string. |
-| `createdAt` | TIMESTAMP | Auto-generated timestamp of the event. |
-
-## Tracking Triggers
-
-The system will intercept actions at the Service layer (Node.js/Express) and write to the AuditLog asynchronously to prevent blocking the main HTTP response.
-
-### Key Monitored Events
-1. **Breakdown Approvals/Edits**: 
-   - When a Supervisor updates a Technician's log before approval (e.g., altering `downtimeMin` or `rootCause`), the `oldValue` vs `newValue` JSON will explicitly show what was changed.
-2. **Master Data Modifications**:
-   - Adding or retiring a machine.
-   - Changing machine hierarchies.
-3. **Authentication**:
-   - Tracking `LOGIN_SUCCESS`, `LOGIN_FAILED`, and `LOGOUT` events for security monitoring.
-
-## Data Retention Strategy
-Audit logs grow rapidly. Future implementations should consider:
-- Partitioning the `AuditLog` table by month/year in PostgreSQL.
-- Exporting logs older than 2 years to AWS S3 (Cold Storage) to maintain database performance.
+## Future Support Enhancements
+The schema is designed to scale to capture:
+- **IP address**: Sourced from the HTTP request headers.
+- **Device information**: Sourced from the `User-Agent` string to track mobile vs. desktop usage.
