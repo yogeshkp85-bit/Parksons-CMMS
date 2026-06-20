@@ -3,34 +3,49 @@
 This document details the PM structure, ensuring exact parity with the current system's preventative logic.
 
 ## PM Schedule Configuration
-The PM engine operates on a strict schedule-based logic.
+The PM engine operates on a strict schedule-based logic mapping to machine requirements.
 
-### Supported Frequencies
-The system supports generating recurring schedules based on the following standard frequencies:
-- Daily
-- Weekly
-- Monthly
-- Quarterly
-- Half-Yearly
-- Yearly
+### Standard Status Flow
+```text
+PM Schedule
+  ↓
+Frequency (Daily, Weekly, Monthly, Quarterly, Half-Yearly, Yearly)
+  ↓
+Execution
+  ↓
+Checkpoints
+  ↓
+Compliance
+  ↓
+Approval
+  ↓
+History
+  ↓
+Audit Logging
+  ↓
+Closed
+```
 
 ## Core Process Steps
 
 ### 1. Schedule Generation
-- The system defines specific PM task checklists mapped to a specific Machine and Frequency.
-- PM Schedules generate due dates based on the calendar and frequency rules.
+- The system defines specific PM task checklists mapped to a specific Machine and Frequency (Daily, Weekly, Monthly, Quarterly, Half-Yearly, Yearly).
 
-### 2. Execution (Technician)
-- The technician loads the pending PM tasks.
-- They execute the task checkpoints specific to that machine's requirements.
+### 2. Execution & Checkpoints (Technician)
+- The technician executes the task checkpoints specific to that machine's requirements.
 
-### 3. Approval (Supervisor)
-- Submitted PM checklists enter a review queue.
+### 3. Approval & Compliance (Supervisor)
 - Supervisors verify the execution quality and approve the PM run.
+- Approved PMs update the overall PM Compliance score.
 
 ### 4. Downstream Tracking
-- **Compliance**: Approved PMs update the overall PM Compliance % score for the department/plant.
 - **History**: The PM execution is logged permanently in the machine's maintenance history.
-- **Audit Logging**: Sign-offs are immutably logged to ensure safety and quality compliance.
+- **Audit Logging**: Sign-offs are immutably logged to ensure safety compliance.
 
-*(Note: Future enhancements like automatic spare part consumption tracking will integrate here without changing the core compliance workflow).*
+---
+
+## Future Enhancements
+*Note: The following capabilities are planned for future phases and will be built as additive features. They will NOT alter the core flow defined above.*
+- Spare consumption tracking tied directly to PM orders
+- SAP / ERP integration
+- QR codes for physical machine verification during PM runs

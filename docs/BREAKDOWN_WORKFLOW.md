@@ -5,13 +5,27 @@ This workflow documents exactly how the breakdown process functions in the Googl
 ## Standard Status Flow
 The lifecycle of a breakdown ticket strictly adheres to this state machine:
 
-`DRAFT` (Optional future state)
+```text
+Technician Entry
   ↓
-`PENDING_REVIEW` (Default state upon Technician submission)
+PENDING_REVIEW (Default state upon submission)
   ↓
-`APPROVED` or `REJECTED` (Supervisor action)
+Supervisor Review
   ↓
-`CLOSED` (Final archived state)
+Edit if Required
+  ↓
+APPROVED / REJECTED
+  ↓
+Dashboard Update
+  ↓
+Email Reports
+  ↓
+Machine History
+  ↓
+Audit Logs
+  ↓
+CLOSED
+```
 
 ## Core Process Steps
 
@@ -26,14 +40,20 @@ The lifecycle of a breakdown ticket strictly adheres to this state machine:
 
 ### 3. Approval / Rejection
 - The supervisor executes an `Approve` or `Reject` action.
-- Only `APPROVED` records flow downstream into the final data pipeline.
+- Only `APPROVED` records flow downstream.
 
 ### 4. Downstream Systems Update
-Once a record is Approved, it triggers the following exact behaviors:
+Once a record is Approved, it triggers the exact behaviors currently used:
 - **Dashboards**: The approved record updates the live metrics.
 - **Reports**: Data is included in Daily Email and Excel Power Query extracts.
-- **Notifications**: Internal alerts are triggered for critical downtimes.
-- **Audit Logs**: An immutable audit trail of the approval (and any preceding edits) is created.
-- **Machine History**: The specific machine's historical ledger is updated for MTTR/MTBF analysis.
+- **Machine History**: The specific machine's historical ledger is updated.
+- **Audit Logs**: An immutable audit trail of the approval is created.
 
-*(Note: Future attachment support for photos/manuals will plug into this workflow without altering the fundamental steps).*
+---
+
+## Future Enhancements
+*Note: The following capabilities are planned for future phases and will be built as additive features. They will NOT alter the core flow defined above.*
+- Attachments (Photo/Manual uploads)
+- QR code support for rapid machine identification
+- Spare consumption tracking
+- Dedicated mobile application front-end
