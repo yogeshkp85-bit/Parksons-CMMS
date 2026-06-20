@@ -1,0 +1,508 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// =========================================================================
+// AUTHENTICATION & USERS
+// =========================================================================
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  phone        String?
+  roleId       String
+  plantId      String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  role         Role      @relation(fields: [roleId], references: [id])
+  plant        Plant?    @relation(fields: [plantId], references: [id])
+
+  breakdownsCreated  BreakdownLog[] @relation("CreatedByRelation")
+  breakdownsApproved BreakdownLog[] @relation("ApprovedByRelation")
+  pmCompleted        PmSchedule[]   @relation("PmCompletedBy")
+  auditLogs          AuditLog[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  code        String    @unique
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String    @id @default(uuid())
+  name        String
+  code        String    @unique
+  module      String
+  action      String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// =========================================================================
+// MASTER TABLES
+// =========================================================================
+
+model Plant {
+  id        String    @id @default(uuid())
+  name      String
+  code      String    @unique
+  address   String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  users           User[]
+  departments     Department[]
+  breakdownLogs   BreakdownLog[]
+  holidayCalendar HolidayCalendar[]
+
+  @@map("plants")
+}
+
+model Department {
+  id        String    @id @default(uuid())
+  name      String
+  code      String
+  plantId   String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  plant         Plant          @relation(fields: [plantId], references: [id])
+  sections      Section[]
+  breakdownLogs BreakdownLog[]
+
+  @@unique([plantId, code])
+  @@map("departments")
+}
+
+model Section {
+  id           String    @id @default(uuid())
+  name         String
+  code         String
+  departmentId String
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  department    Department     @relation(fields: [departmentId], references: [id])
+  units         Unit[]
+  machines      Machine[]
+  breakdownLogs BreakdownLog[]
+
+  @@unique([departmentId, code])
+  @@map("sections")
+}
+
+model Unit {
+  id        String    @id @default(uuid())
+  name      String
+  code      String
+  sectionId String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  section       Section        @relation(fields: [sectionId], references: [id])
+  breakdownLogs BreakdownLog[]
+
+  @@unique([sectionId, code])
+  @@map("units")
+}
+
+model MachineCategory {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  code        String    @unique
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  machines Machine[]
+  pmTasks  PmTask[]
+
+  @@map("machine_categories")
+}
+
+model Machine {
+  id                String    @id @default(uuid())
+  machineId         String    @unique
+  name              String
+  machineCategoryId String    @map("machine_category_id")
+  sectionId         String    @map("section_id")
+  oem               String?
+  model             String?
+  serialNumber      String?
+  installationDate  DateTime? @map("installation_date")
+  status            String    @default("ACTIVE")
+  criticality       String    @default("MEDIUM")
+  imageUrl          String?   @map("image_url")
+  qrCode            String?   @map("qr_code")
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  category      MachineCategory @relation(fields: [machineCategoryId], references: [id])
+  section       Section         @relation(fields: [sectionId], references: [id])
+  subAssemblies SubAssembly[]
+  breakdowns    BreakdownLog[]
+  pmSchedules   PmSchedule[]
+
+  @@map("machines")
+}
+
+model SubAssembly {
+  id          String    @id @default(uuid())
+  machineId   String    @map("machine_id")
+  name        String
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  machine    Machine     @relation(fields: [machineId], references: [id])
+  components Component[]
+
+  @@map("sub_assemblies")
+}
+
+model Component {
+  id            String    @id @default(uuid())
+  subAssemblyId String    @map("sub_assembly_id")
+  name          String
+  description   String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  subAssembly SubAssembly @relation(fields: [subAssemblyId], references: [id])
+
+  @@map("components")
+}
+
+// =========================================================================
+// CATEGORY MASTERS & AUX TABLES
+// =========================================================================
+
+model BreakdownCategory {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  breakdowns BreakdownLog[]
+
+  @@map("breakdown_categories")
+}
+
+model ProblemCategory {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  breakdowns BreakdownLog[]
+
+  @@map("problem_categories")
+}
+
+model RootCauseCategory {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  breakdowns BreakdownLog[]
+
+  @@map("root_cause_categories")
+}
+
+model ActionTakenCategory {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  breakdowns BreakdownLog[]
+
+  @@map("action_taken_categories")
+}
+
+model ShiftMaster {
+  id        String    @id @default(uuid())
+  name      String
+  code      String    @unique
+  startTime String
+  endTime   String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  breakdowns BreakdownLog[]
+
+  @@map("shift_masters")
+}
+
+model HolidayCalendar {
+  id        String    @id @default(uuid())
+  name      String
+  date      DateTime
+  plantId   String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  plant Plant @relation(fields: [plantId], references: [id])
+
+  @@unique([plantId, date])
+  @@map("holiday_calendars")
+}
+
+model Vendor {
+  id            String    @id @default(uuid())
+  name          String
+  contactPerson String?   @map("contact_person")
+  email         String?
+  phone         String?
+  address       String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  spares SparePart[]
+
+  @@map("vendors")
+}
+
+model SparePart {
+  id          String    @id @default(uuid())
+  partNumber  String    @unique @map("part_number")
+  name        String
+  description String?
+  uom         String    @default("PCS")
+  unitPrice   Float     @default(0.0) @map("unit_price")
+  vendorId    String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  vendor           Vendor?                  @relation(fields: [vendorId], references: [id])
+  breakdownSpares BreakdownSparePartUsed[]
+
+  @@map("spare_parts")
+}
+
+model PmFrequencyMaster {
+  id           String    @id @default(uuid())
+  name         String
+  code         String    @unique
+  intervalDays Int       @map("interval_days")
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  pmTasks PmTask[]
+
+  @@map("pm_frequency_masters")
+}
+
+// =========================================================================
+// BREAKDOWN MANAGEMENT MODULE
+// =========================================================================
+
+model BreakdownLog {
+  id                     String    @id @default(uuid())
+  breakdownNumber        String    @unique @map("breakdown_number")
+  plantId                String    @map("plant_id")
+  departmentId           String    @map("department_id")
+  sectionId              String    @map("section_id")
+  machineId              String    @map("machine_id")
+  unitId                 String?   @map("unit_id")
+  date                   DateTime
+  shiftId                String    @map("shift_id")
+  startTime              DateTime  @map("time_start")
+  endTime                DateTime? @map("time_end")
+  durationMin            Int?      @map("duration_min")
+  categoryId             String    @map("category_id")
+  problemCategoryId      String    @map("problem_category_id")
+  problemDescription     String    @map("description")
+  actionTakenCategoryId  String?   @map("action_taken_category_id")
+  actionTakenDescription String?   @map("action_taken")
+  rootCauseCategoryId    String?   @map("root_cause_category_id")
+  rootCauseDescription   String?   @map("root_cause")
+  remarks                String?
+  attendedBy             String?   @map("attended_by")
+  submittedBy            String?   @map("submitted_by")
+  downtimeHours          Float?    @map("downtime_hours")
+  manpowerCount          Int?      @default(1) @map("manpower_count")
+  imageUrl               String?   @map("image_url")
+  status                 String    @default("PENDING_REVIEW")
+  createdByUserId        String    @map("created_by")
+  approvedByUserId       String?   @map("approved_by")
+  approvedAt             DateTime? @map("approved_date")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+  deletedAt              DateTime? @map("deleted_at")
+
+  plant               Plant                @relation(fields: [plantId], references: [id])
+  department          Department           @relation(fields: [departmentId], references: [id])
+  section             Section              @relation(fields: [sectionId], references: [id])
+  machine             Machine              @relation(fields: [machineId], references: [id])
+  unit                Unit?                @relation(fields: [unitId], references: [id])
+  shift               ShiftMaster          @relation(fields: [shiftId], references: [id])
+  category            BreakdownCategory    @relation(fields: [categoryId], references: [id])
+  problemCategory     ProblemCategory      @relation(fields: [problemCategoryId], references: [id])
+  actionTakenCategory ActionTakenCategory? @relation(fields: [actionTakenCategoryId], references: [id])
+  rootCauseCategory   RootCauseCategory?   @relation(fields: [rootCauseCategoryId], references: [id])
+  createdBy           User                 @relation("CreatedByRelation", fields: [createdByUserId], references: [id])
+  approvedBy          User?                @relation("ApprovedByRelation", fields: [approvedByUserId], references: [id])
+
+  sparesUsed BreakdownSparePartUsed[]
+
+  @@map("breakdown_logs")
+}
+
+model BreakdownSparePartUsed {
+  id             String   @id @default(uuid())
+  breakdownLogId String   @map("breakdown_log_id")
+  sparePartId    String   @map("spare_part_id")
+  quantity       Int      @default(1)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  breakdownLog BreakdownLog @relation(fields: [breakdownLogId], references: [id], onDelete: Cascade)
+  sparePart    SparePart    @relation(fields: [sparePartId], references: [id])
+
+  @@unique([breakdownLogId, sparePartId])
+  @@map("breakdown_spares_used")
+}
+
+// =========================================================================
+// PM MODULE
+// =========================================================================
+
+model PmTask {
+  id                String    @id @default(uuid())
+  name              String
+  description       String?
+  machineCategoryId String?   @map("machine_category_id")
+  frequencyId       String    @map("frequency_id")
+  checkpoints       String
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  category  MachineCategory? @relation(fields: [machineCategoryId], references: [id])
+  frequency PmFrequencyMaster @relation(fields: [frequencyId], references: [id])
+
+  schedules PmSchedule[]
+
+  @@map("pm_tasks")
+}
+
+model PmSchedule {
+  id                String    @id @default(uuid())
+  machineId         String    @map("machine_id")
+  pmTaskId          String    @map("pm_task_id")
+  dueDate           DateTime  @map("due_date")
+  status            String    @default("PENDING")
+  completedAt       DateTime? @map("completed_at")
+  completedByUserId String?   @map("completed_by")
+  completionRemarks String?
+  checkpointsResult String?
+  imageUrl          String?   @map("image_url")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  machine     Machine    @relation(fields: [machineId], references: [id])
+  pmTask      PmTask     @relation(fields: [pmTaskId], references: [id])
+  completedBy User?      @relation("PmCompletedBy", fields: [completedByUserId], references: [id])
+
+  @@map("pm_schedules")
+}
+
+// =========================================================================
+// SYSTEM SERVICES: AUDIT TRAIL
+// =========================================================================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  module     String
+  action     String
+  targetId   String?  @map("target_id")
+  oldValue   String?  @map("old_value")
+  newValue   String?  @map("new_value")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
