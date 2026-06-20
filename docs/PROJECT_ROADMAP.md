@@ -1,40 +1,58 @@
 # Project Roadmap
 
-This roadmap outlines the phased approach to converting the legacy Google Apps Script CMMS into an enterprise-ready AWS PostgreSQL system. 
+This roadmap outlines the phased approach to converting the legacy Google Apps Script CMMS into an enterprise-ready system. 
 
-> **Important**: All current phases focus on local development and architecture generation. Production migration will happen in the future once corporate infrastructure is provided.
+> **Important**: Current phase is Architecture and Preparation only. No AWS deployment, production database connections, or infrastructure configurations are active.
 
-## Phase 1: Discovery & Architecture (Current Phase)
-- [x] Analyze the live Google Apps Script codebase as the single source of truth.
-- [x] Extract workflows, KPIs, and master data logic.
+## Phase 1: Architecture Extraction & Preparation (Current)
+- [x] Analyze the live Google Apps Script codebase.
 - [x] Establish target folder structure.
-- [x] Generate Batch 1 Documentation (`SYSTEM_ARCHITECTURE`, `FOLDER_STRUCTURE`, `MODULE_BREAKDOWN`, `PROJECT_ROADMAP`).
+- [x] Document System Architecture, Folder Structure, Module Breakdown, Roadmap.
 
-## Phase 2: Database Schema & API Design
-- [x] Draft `schema.prisma` targeting PostgreSQL, utilizing UUIDs.
-- [ ] Document database design and relationships (`DATABASE_DESIGN.md`).
-- [ ] Define REST API endpoints and data transfer objects (`API_SPECIFICATION.md`).
-- [ ] Define Role-Based Access Control (`ROLE_PERMISSION_MATRIX.md`).
+## Phase 2: Database & Core Design (Current)
+- **Database Strategy**:
+  - Current development: SQLite or PostgreSQL locally.
+  - Target production: AWS RDS PostgreSQL.
+  - Maintain UUID-based schema. Avoid SQLite-specific redesign.
+- [ ] Document Database Design.
+- [ ] Document Role/Permission Matrix.
+- [ ] Document Audit Log Design.
 
-## Phase 3: Business Logic & Workflow Documentation
-- [ ] Document the breakdown lifecycle (`BREAKDOWN_WORKFLOW.md`).
-- [ ] Document preventive maintenance workflows (`PM_WORKFLOW.md`).
-- [ ] Document the mathematical models for reporting (`KPI_ENGINE_DESIGN.md` & `REPORTING_ENGINE_DESIGN.md`).
-- [ ] Document security and logging (`AUTHENTICATION_DESIGN.md` & `AUDIT_LOG_DESIGN.md`).
+## Phase 3: Workflow & Engine Design
+- [ ] Document Breakdown & PM Workflows.
+- [ ] Document KPI & Reporting Engines.
 
-## Phase 4: Backend & Frontend Scaffolding
-- [ ] Implement backend controllers, services, and middlewares locally.
-- [ ] Build the React frontend foundation (components, routing, context).
-- [ ] Connect the frontend to the local backend API.
+## Phase 4: API & System Integrations Design
+- [ ] Document API Specifications.
+- [ ] Document Authentication, Notification, and Email modules.
 
-## Phase 5: Handover Preparation
-- [ ] Finalize `MIGRATION_STRATEGY.md`.
-- [ ] Document `AWS_ARCHITECTURE_PLACEHOLDER.md`.
-- [ ] Ensure all code is cleanly committed to the GitHub repository.
+## Phase 5: Cloud Migration Strategy
+- [ ] Finalize Migration Strategy from Apps Script to AWS.
+- [ ] Define AWS Architecture Placeholder.
 
-## Phase 6: AWS Corporate Migration (Future)
-- [ ] Receive AWS RDS credentials and IAM policies from corporate IT.
-- [ ] Run Prisma migrations against live AWS RDS.
-- [ ] Deploy Node.js backend.
-- [ ] Deploy React frontend.
-- [ ] Perform historical data migration from Google Sheets to PostgreSQL.
+## Migration Flow (Long-Term Goal)
+```text
+Google Apps Script Production
+  ↓
+Business Logic Extraction
+  ↓
+Documentation
+  ↓
+Architecture
+  ↓
+Git Repository
+  ↓
+Backend + Frontend Development
+  ↓
+Testing
+  ↓
+Corporate IT Review
+  ↓
+AWS Infrastructure
+  ↓
+PostgreSQL RDS
+  ↓
+Parallel Run
+  ↓
+Final Cutover
+```
