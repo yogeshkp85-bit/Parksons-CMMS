@@ -13,10 +13,10 @@ generator client {
 
 model User {
   id           String    @id @default(uuid()) @db.Uuid
-  name         String    @db.VarChar(100)
-  email        String    @unique @db.VarChar(100)
-  passwordHash String    @db.VarChar(255)
-  phone        String?   @db.VarChar(20)
+  name         String
+  email        String    @unique
+  passwordHash String
+  phone        String?
   roleId       String    @db.Uuid
   plantId      String?   @db.Uuid
   isActive     Boolean   @default(true)
@@ -24,8 +24,8 @@ model User {
   updatedAt    DateTime  @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
 
-  role         Role      @relation(fields: [roleId], references: [id])
-  plant        Plant?    @relation(fields: [plantId], references: [id])
+  role  Role   @relation(fields: [roleId], references: [id])
+  plant Plant? @relation(fields: [plantId], references: [id])
 
   breakdownsCreated  BreakdownLog[] @relation("CreatedByRelation")
   breakdownsApproved BreakdownLog[] @relation("ApprovedByRelation")
@@ -37,9 +37,9 @@ model User {
 
 model Role {
   id          String    @id @default(uuid()) @db.Uuid
-  name        String    @unique @db.VarChar(50) // e.g. "Super Admin", "Supervisor", "Technician"
-  code        String    @unique @db.VarChar(50) // e.g. "SUPER_ADMIN", "SUPERVISOR", "TECHNICIAN"
-  description String?   @db.VarChar(255)
+  name        String    @unique
+  code        String    @unique
+  description String?
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
@@ -52,17 +52,17 @@ model Role {
 }
 
 model Permission {
-  id          String    @id @default(uuid()) @db.Uuid
-  name        String    @db.VarChar(100) // e.g. "Create Breakdown Entry"
-  code        String    @unique @db.VarChar(100) // e.g. "BREAKDOWN_CREATE"
-  module      String    @db.VarChar(50) // e.g. "Breakdown Management"
-  action      String    @db.VarChar(20) // e.g. "CREATE", "READ", "UPDATE", "DELETE"
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  code      String    @unique
+  module    String
+  action    String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
-  roles       RolePermission[]
+  roles RolePermission[]
 
   @@map("permissions")
 }
@@ -73,8 +73,8 @@ model RolePermission {
   permissionId String   @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at")
 
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, permissionId])
   @@map("role_permissions")
@@ -86,9 +86,9 @@ model RolePermission {
 
 model Plant {
   id        String    @id @default(uuid()) @db.Uuid
-  name      String    @db.VarChar(100)
-  code      String    @unique @db.VarChar(50) // e.g. "PLANT_A"
-  address   String?   @db.VarChar(255)
+  name      String
+  code      String    @unique
+  address   String?
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -104,8 +104,8 @@ model Plant {
 
 model Department {
   id        String    @id @default(uuid()) @db.Uuid
-  name      String    @db.VarChar(100)
-  code      String    @db.VarChar(50)
+  name      String
+  code      String
   plantId   String    @db.Uuid
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now()) @map("created_at")
@@ -122,8 +122,8 @@ model Department {
 
 model Section {
   id           String    @id @default(uuid()) @db.Uuid
-  name         String    @db.VarChar(100)
-  code         String    @db.VarChar(50)
+  name         String
+  code         String
   departmentId String    @db.Uuid
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now()) @map("created_at")
@@ -141,8 +141,8 @@ model Section {
 
 model Unit {
   id        String    @id @default(uuid()) @db.Uuid
-  name      String    @db.VarChar(100) // e.g. "Feeder", "PU1", "Delivery"
-  code      String    @db.VarChar(50)
+  name      String
+  code      String
   sectionId String    @db.Uuid
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now()) @map("created_at")
@@ -157,13 +157,13 @@ model Unit {
 }
 
 model MachineCategory {
-  id          String    @id @default(uuid()) @db.Uuid
-  name        String    @unique @db.VarChar(100) // e.g. "PRINTING", "CORRUGATION"
-  code        String    @unique @db.VarChar(50)
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String    @unique
+  code      String    @unique
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
   machines Machine[]
   pmTasks  PmTask[]
@@ -173,18 +173,18 @@ model MachineCategory {
 
 model Machine {
   id                String    @id @default(uuid()) @db.Uuid
-  machineId         String    @unique @db.VarChar(50) // Unique Code, e.g. "PrintKBA1"
-  name              String    @db.VarChar(100)
+  machineId         String    @unique @db.Uuid
+  name              String
   machineCategoryId String    @map("machine_category_id") @db.Uuid
   sectionId         String    @map("section_id") @db.Uuid
-  oem               String?   @db.VarChar(100)
-  model             String?   @db.VarChar(100)
-  serialNumber      String?   @db.VarChar(100)
+  oem               String?
+  model             String?
+  serialNumber      String?
   installationDate  DateTime? @map("installation_date")
-  status            String    @default("ACTIVE") // ACTIVE, UNDER_MAINTENANCE, INACTIVE
-  criticality       String    @default("MEDIUM") // HIGH, MEDIUM, LOW
-  imageUrl          String?   @map("image_url") @db.VarChar(255)
-  qrCode            String?   @map("qr_code") @db.VarChar(255)
+  status            String    @default("ACTIVE")
+  criticality       String    @default("MEDIUM")
+  imageUrl          String?   @map("image_url")
+  qrCode            String?   @map("qr_code")
   isActive          Boolean   @default(true)
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
@@ -202,8 +202,8 @@ model Machine {
 model SubAssembly {
   id          String    @id @default(uuid()) @db.Uuid
   machineId   String    @map("machine_id") @db.Uuid
-  name        String    @db.VarChar(100)
-  description String?   @db.VarChar(255)
+  name        String
+  description String?
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
@@ -218,8 +218,8 @@ model SubAssembly {
 model Component {
   id            String    @id @default(uuid()) @db.Uuid
   subAssemblyId String    @map("sub_assembly_id") @db.Uuid
-  name          String    @db.VarChar(100)
-  description   String?   @db.VarChar(255)
+  name          String
+  description   String?
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
@@ -236,7 +236,7 @@ model Component {
 
 model BreakdownCategory {
   id        String    @id @default(uuid()) @db.Uuid
-  name      String    @unique @db.VarChar(100)
+  name      String    @unique
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -249,7 +249,7 @@ model BreakdownCategory {
 
 model ProblemCategory {
   id        String    @id @default(uuid()) @db.Uuid
-  name      String    @unique @db.VarChar(100) // e.g. "Electrical", "Mechanical"
+  name      String    @unique
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -262,7 +262,7 @@ model ProblemCategory {
 
 model RootCauseCategory {
   id        String    @id @default(uuid()) @db.Uuid
-  name      String    @unique @db.VarChar(100)
+  name      String    @unique
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -275,7 +275,7 @@ model RootCauseCategory {
 
 model ActionTakenCategory {
   id        String    @id @default(uuid()) @db.Uuid
-  name      String    @unique @db.VarChar(100)
+  name      String    @unique
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -288,10 +288,10 @@ model ActionTakenCategory {
 
 model ShiftMaster {
   id        String    @id @default(uuid()) @db.Uuid
-  name      String    @db.VarChar(50) // e.g. "First Shift"
-  code      String    @unique @db.VarChar(20) // e.g. "SHIFT_1"
-  startTime String    @db.VarChar(10) // e.g. "07:00:00"
-  endTime   String    @db.VarChar(10) // e.g. "15:00:00"
+  name      String
+  code      String    @unique
+  startTime String
+  endTime   String
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -304,8 +304,8 @@ model ShiftMaster {
 
 model HolidayCalendar {
   id        String    @id @default(uuid()) @db.Uuid
-  name      String    @db.VarChar(100)
-  date      DateTime  @db.Date
+  name      String
+  date      DateTime
   plantId   String    @db.Uuid
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now()) @map("created_at")
@@ -320,11 +320,11 @@ model HolidayCalendar {
 
 model Vendor {
   id            String    @id @default(uuid()) @db.Uuid
-  name          String    @db.VarChar(100)
-  contactPerson String?   @map("contact_person") @db.VarChar(100)
-  email         String?   @db.VarChar(100)
-  phone         String?   @db.VarChar(20)
-  address       String?   @db.VarChar(255)
+  name          String
+  contactPerson String?   @map("contact_person")
+  email         String?
+  phone         String?
+  address       String?
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
@@ -337,10 +337,10 @@ model Vendor {
 
 model SparePart {
   id          String    @id @default(uuid()) @db.Uuid
-  partNumber  String    @unique @map("part_number") @db.VarChar(100)
-  name        String    @db.VarChar(100)
-  description String?   @db.VarChar(255)
-  uom         String    @default("PCS") @db.VarChar(20)
+  partNumber  String    @unique @map("part_number")
+  name        String
+  description String?
+  uom         String    @default("PCS")
   unitPrice   Float     @default(0.0) @map("unit_price")
   vendorId    String?   @db.Uuid
   isActive    Boolean   @default(true)
@@ -348,7 +348,7 @@ model SparePart {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  vendor           Vendor?                  @relation(fields: [vendorId], references: [id])
+  vendor          Vendor?                  @relation(fields: [vendorId], references: [id])
   breakdownSpares BreakdownSparePartUsed[]
 
   @@map("spare_parts")
@@ -356,8 +356,8 @@ model SparePart {
 
 model PmFrequencyMaster {
   id           String    @id @default(uuid()) @db.Uuid
-  name         String    @db.VarChar(50) // e.g. "Weekly", "Monthly"
-  code         String    @unique @db.VarChar(50) // e.g. "WEEKLY", "MONTHLY"
+  name         String
+  code         String    @unique
   intervalDays Int       @map("interval_days")
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now()) @map("created_at")
@@ -375,31 +375,31 @@ model PmFrequencyMaster {
 
 model BreakdownLog {
   id                     String    @id @default(uuid()) @db.Uuid
-  breakdownNumber        String    @unique @map("breakdown_number") @db.VarChar(50) // Generated pattern
+  breakdownNumber        String    @unique @map("breakdown_number")
   plantId                String    @map("plant_id") @db.Uuid
   departmentId           String    @map("department_id") @db.Uuid
   sectionId              String    @map("section_id") @db.Uuid
   machineId              String    @map("machine_id") @db.Uuid
   unitId                 String?   @map("unit_id") @db.Uuid
-  date                   DateTime  @db.Date
+  date                   DateTime
   shiftId                String    @map("shift_id") @db.Uuid
   startTime              DateTime  @map("time_start")
   endTime                DateTime? @map("time_end")
   durationMin            Int?      @map("duration_min")
   categoryId             String    @map("category_id") @db.Uuid
   problemCategoryId      String    @map("problem_category_id") @db.Uuid
-  problemDescription     String    @map("description") @db.Text
+  problemDescription     String    @map("description")
   actionTakenCategoryId  String?   @map("action_taken_category_id") @db.Uuid
-  actionTakenDescription String?   @map("action_taken") @db.Text
+  actionTakenDescription String?   @map("action_taken")
   rootCauseCategoryId    String?   @map("root_cause_category_id") @db.Uuid
-  rootCauseDescription   String?   @map("root_cause") @db.Text
-  remarks                String?   @db.Text
-  attendedBy             String?   @map("attended_by") @db.VarChar(100)
-  submittedBy            String?   @map("submitted_by") @db.VarChar(100)
+  rootCauseDescription   String?   @map("root_cause")
+  remarks                String?
+  attendedBy             String?   @map("attended_by")
+  submittedBy            String?   @map("submitted_by")
   downtimeHours          Float?    @map("downtime_hours")
   manpowerCount          Int?      @default(1) @map("manpower_count")
-  imageUrl               String?   @map("image_url") @db.VarChar(255)
-  status                 String    @default("PENDING_REVIEW") // DRAFT, PENDING_REVIEW, APPROVED, REJECTED, CLOSED
+  imageUrl               String?   @map("image_url")
+  status                 String    @default("PENDING_REVIEW")
   createdByUserId        String    @map("created_by") @db.Uuid
   approvedByUserId       String?   @map("approved_by") @db.Uuid
   approvedAt             DateTime? @map("approved_date")
@@ -446,17 +446,17 @@ model BreakdownSparePartUsed {
 
 model PmTask {
   id                String    @id @default(uuid()) @db.Uuid
-  name              String    @db.VarChar(100)
-  description       String?   @db.Text
+  name              String
+  description       String?
   machineCategoryId String?   @map("machine_category_id") @db.Uuid
   frequencyId       String    @map("frequency_id") @db.Uuid
-  checkpoints       Json // JSON Array of checkpoints [{ id, text, expectedResult }]
+  checkpoints       String
   isActive          Boolean   @default(true)
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")
 
-  category  MachineCategory? @relation(fields: [machineCategoryId], references: [id])
+  category  MachineCategory?  @relation(fields: [machineCategoryId], references: [id])
   frequency PmFrequencyMaster @relation(fields: [frequencyId], references: [id])
 
   schedules PmSchedule[]
@@ -468,20 +468,20 @@ model PmSchedule {
   id                String    @id @default(uuid()) @db.Uuid
   machineId         String    @map("machine_id") @db.Uuid
   pmTaskId          String    @map("pm_task_id") @db.Uuid
-  dueDate           DateTime  @map("due_date") @db.Date
-  status            String    @default("PENDING") // PENDING, OVERDUE, COMPLETED, SKIPPED
+  dueDate           DateTime  @map("due_date")
+  status            String    @default("PENDING")
   completedAt       DateTime? @map("completed_at")
   completedByUserId String?   @map("completed_by") @db.Uuid
-  completionRemarks String?   @map("completion_remarks") @db.Text
-  checkpointsResult Json? // JSON Array of results [{ id, text, result: 'OK' | 'NOT_OK', remarks }]
-  imageUrl          String?   @map("image_url") @db.VarChar(255)
+  completionRemarks String?
+  checkpointsResult Json?
+  imageUrl          String?   @map("image_url")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")
 
-  machine     Machine    @relation(fields: [machineId], references: [id])
-  pmTask      PmTask     @relation(fields: [pmTaskId], references: [id])
-  completedBy User?      @relation("PmCompletedBy", fields: [completedByUserId], references: [id])
+  machine     Machine @relation(fields: [machineId], references: [id])
+  pmTask      PmTask  @relation(fields: [pmTaskId], references: [id])
+  completedBy User?   @relation("PmCompletedBy", fields: [completedByUserId], references: [id])
 
   @@map("pm_schedules")
 }
@@ -491,18 +491,69 @@ model PmSchedule {
 // =========================================================================
 
 model AuditLog {
-  id         String   @id @default(uuid()) @db.Uuid
-  userId     String?  @map("user_id") @db.Uuid
-  module     String   @db.VarChar(50) // e.g. "Machine Master", "Breakdown Log"
-  action     String   @db.VarChar(20) // CREATE, UPDATE, DELETE, LOGIN
-  targetId   String?  @map("target_id") @db.VarChar(50)
-  oldValue   Json?    @map("old_value")
-  newValue   Json?    @map("new_value")
-  ipAddress  String?  @map("ip_address") @db.VarChar(45)
-  userAgent  String?  @map("user_agent") @db.VarChar(255)
-  createdAt  DateTime @default(now()) @map("created_at")
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  module    String
+  action    String
+  targetId  String?  @map("target_id") @db.Uuid
+  oldValue  Json?    @map("old_value")
+  newValue  Json?    @map("new_value")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
 
   user User? @relation(fields: [userId], references: [id])
 
   @@map("audit_logs")
+}
+// =========================================================================
+// PHASE 6 PLACEHOLDERS
+// =========================================================================
+
+model MachineHistory {
+  id        String   @id @default(uuid()) @db.Uuid
+  machineId String   @db.Uuid
+  event     String
+  details   String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("machine_history")
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("notifications")
+}
+
+model Report {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  type      String
+  generated DateTime @default(now())
+  url       String?
+
+  @@map("reports")
+}
+
+model Attachment {
+  id         String   @id @default(uuid()) @db.Uuid
+  entityId   String   @db.Uuid
+  entityType String
+  url        String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("attachments")
+}
+
+model Configuration {
+  id    String @id @default(uuid()) @db.Uuid
+  key   String @unique
+  value String
+
+  @@map("configurations")
 }
