@@ -62,6 +62,7 @@ interface BreakdownRow {
   minutes: number;
   availableMin: number;
   attendedBy: string;
+  remarks?: string | null;
 }
 
 const MONTH_ORDER = [
@@ -108,9 +109,13 @@ export const Dashboard: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await api.get('/breakdowns/dashboard');
-      if (res.data?.data) {
-        const { rows, pendingCount, generated } = res.data.data;
+      const [reportsRes, pendingRes] = await Promise.all([
+        api.get('/reports/dashboard'),
+        api.get('/breakdowns/pending')
+      ]);
+
+      if (reportsRes.data?.data) {
+        const { rows, generated } = reportsRes.data.data;
         
         const rowsWithFY = rows.map((r: BreakdownRow) => {
           let fy = 'Unknown';
@@ -130,7 +135,6 @@ export const Dashboard: React.FC = () => {
         });
 
         setAllRows(rowsWithFY);
-        setPendingCount(pendingCount);
         if (generated) {
           const formattedDate = new Date(generated).toLocaleString('en-IN', {
             day: '2-digit',
@@ -142,12 +146,63 @@ export const Dashboard: React.FC = () => {
           setGenTime(formattedDate);
         }
       }
+
+      if (pendingRes.data?.data) {
+        setPendingCount(pendingRes.data.data.pendingCount || 0);
+      }
     } catch (err) {
       console.error('Failed to load dashboard data', err);
       setError('Unable to retrieve maintenance datasets from database.');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleExportCSV = () => {
+    if (filteredRows.length === 0) return;
+    const headers = [
+      'Ref ID', 'Date', 'Month Year', 'Shift', 'Machine Type', 
+      'Machine Name', 'Unit', 'Problem Type', 'Category', 
+      'Description', 'Action Taken', 'Root Cause', 'Time Start', 
+      'Time End', 'Duration (Min)', 'Attended By', 'Remarks'
+    ];
+    
+    const csvRows = [
+      headers.join(','),
+      ...filteredRows.map(row => {
+        const values = [
+          row.refId,
+          row.date,
+          row.monthYear,
+          row.shift,
+          row.machineType,
+          row.machineName,
+          row.unit,
+          row.problemType,
+          row.category,
+          `"${(row.description || '').replace(/"/g, '""')}"`,
+          `"${(row.actionTaken || '').replace(/"/g, '""')}"`,
+          `"${(row.rootCause || '').replace(/"/g, '""')}"`,
+          row.timeStart,
+          row.timeEnd,
+          row.minutes,
+          row.attendedBy,
+          `"${(row.remarks || '').replace(/"/g, '""')}"`
+        ];
+        return values.join(',');
+      })
+    ];
+    
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `cmms_reliability_report_${Date.now()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   useEffect(() => {
@@ -670,14 +725,13 @@ export const Dashboard: React.FC = () => {
           >
             &#8635; Reload Data
           </button>
-          <a
-            href="/api/v1/breakdowns/export"
-            download
-            className="px-4 py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-semibold hover:bg-cyan-500/20 transition-all flex items-center gap-1.5"
+          <button
+            onClick={handleExportCSV}
+            className="px-4 py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-semibold hover:bg-cyan-500/20 cursor-pointer transition-all flex items-center gap-1.5"
           >
             <Download size={13} />
             Export CSV
-          </a>
+          </button>
         </div>
       </div>
 

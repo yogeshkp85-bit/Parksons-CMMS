@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
 import { 
   LayoutDashboard, 
   Wrench, 
@@ -12,11 +13,15 @@ import {
   Bell, 
   User, 
   FileText,
-  MapPin
+  MapPin,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle
 } from 'lucide-react';
 
 export const AppLayout: React.FC = () => {
   const { user, permissions, logout } = useAuth();
+  const { notifications, unreadCount, isConnected, markAsRead, markAllAsRead } = useNotifications();
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -36,39 +41,57 @@ export const AppLayout: React.FC = () => {
   // Define sidebar navigation links and their required permission codes
   const navigationItems = [
     { 
-      name: 'Overview Dashboard', 
+      name: 'Dashboard', 
       path: '/', 
       icon: <LayoutDashboard size={18} />, 
-      permission: 'DASHBOARD_VIEW' 
+      permission: 'Dashboard' 
     },
     { 
-      name: 'Breakdown Logs', 
+      name: 'Breakdown Entry', 
       path: '/breakdowns', 
       icon: <Wrench size={18} />, 
-      permission: 'BREAKDOWN_VIEW' 
+      permission: 'Create' 
     },
     { 
-      name: 'PM Schedules', 
-      path: '/pm', 
-      icon: <CalendarDays size={18} />, 
-      permission: 'PM_VIEW' 
-    },
-    { 
-      name: 'Machine Master', 
-      path: '/machines', 
-      icon: <Settings size={18} />, 
-      permission: 'MACHINE_VIEW' 
-    },
-    { 
-      name: 'Audit Logs', 
+      name: 'Approval Queue', 
       path: '/audit', 
       icon: <FileText size={18} />, 
-      permission: 'AUDIT_VIEW' 
+      permission: 'Approve' 
+    },
+    { 
+      name: 'Reports', 
+      path: '/reports', 
+      icon: <FileText size={18} />, 
+      permission: 'Reports' 
+    },
+    { 
+      name: 'Preventive Maint.', 
+      path: '/pm', 
+      icon: <CalendarDays size={18} />, 
+      permission: 'PreventiveMaintenance' 
+    },
+    { 
+      name: 'Masters', 
+      path: '/machines', 
+      icon: <Settings size={18} />, 
+      permission: 'Masters' 
+    },
+    { 
+      name: 'User Management', 
+      path: '/users', 
+      icon: <User size={18} />, 
+      permission: 'Users' 
+    },
+    { 
+      name: 'Settings', 
+      path: '/settings', 
+      icon: <Settings size={18} />, 
+      permission: 'Masters' 
     }
   ];
 
   // Filter links: user must be Super Admin (bypasses all) OR have the permission code
-  const isSuperAdmin = user?.role?.code === 'SUPER_ADMIN';
+  const isSuperAdmin = user?.role?.code === 'superadmin' || user?.role?.code === 'SUPER_ADMIN';
   const visibleNavItems = navigationItems.filter(item => 
     isSuperAdmin || permissions.includes(item.permission)
   );
@@ -81,12 +104,31 @@ export const AppLayout: React.FC = () => {
     return location.pathname.startsWith(path);
   };
 
-  // Notification list mockup
-  const mockNotifications = [
-    { id: 1, message: 'New breakdown logged on HeidelbergCX1', time: '10 mins ago', unread: true },
-    { id: 2, message: 'PM Task scheduled for PrintKBA2 due today', time: '2 hours ago', unread: true },
-    { id: 3, message: 'System maintenance check completed', time: '1 day ago', unread: false }
-  ];
+  const handleNotificationClick = async (notif: any) => {
+    await markAsRead(notif.id);
+    setNotificationsOpen(false);
+    if (notif.type === 'BREAKDOWN_CREATED') {
+      navigate('/audit');
+    } else {
+      navigate('/breakdowns');
+    }
+  };
+
+  const formatRelativeTime = (isoString: string) => {
+    try {
+      const now = new Date();
+      const past = new Date(isoString);
+      const diffMs = now.getTime() - past.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `${diffHours}h ago`;
+      return past.toLocaleDateString();
+    } catch {
+      return 'Recently';
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#07090e] flex text-gray-100 font-sans">
@@ -180,11 +222,24 @@ export const AppLayout: React.FC = () => {
             </button>
             
             {/* Dynamic Breadcrumbs / Header Location Info */}
-            <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-gray-400">
-              <MapPin size={13} className="text-emerald-500" />
-              <span>Plant: Daman Assembly</span>
-              <span className="text-white/20">/</span>
-              <span className="text-emerald-400 font-semibold">{user?.role?.name} Interface</span>
+            <div className="hidden sm:flex items-center gap-4 text-xs font-medium text-gray-400">
+              <div className="flex items-center gap-2">
+                <MapPin size={13} className="text-emerald-500" />
+                <span>Plant: Daman Assembly</span>
+                <span className="text-white/20">/</span>
+                <span className="text-emerald-400 font-semibold">{user?.role?.name} Interface</span>
+              </div>
+              <div className="flex items-center gap-1.5 border-l border-white/10 pl-4">
+                {isConnected ? (
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-[10px] text-red-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Offline
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -199,7 +254,12 @@ export const AppLayout: React.FC = () => {
                 className="p-2 text-gray-400 hover:text-gray-200 hover:bg-white/5 rounded-lg relative cursor-pointer"
               >
                 <Bell size={18} />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500 shadow-md shadow-emerald-500/50 animate-pulse" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 
+                    text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-md shadow-red-500/30">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </button>
 
               {notificationsOpen && (
@@ -208,17 +268,56 @@ export const AppLayout: React.FC = () => {
                   <div className="absolute right-0 mt-2 w-80 glass-panel border-white/10 rounded-xl shadow-xl z-20 overflow-hidden animate-fade-in">
                     <div className="px-4 py-3 border-b border-white/5 bg-[#0f172a]/20 flex items-center justify-between">
                       <span className="text-xs font-bold text-gray-200">Alert Notification Hub</span>
-                      <span className="text-[10px] text-emerald-400 font-semibold cursor-pointer">Mark all read</span>
+                      {unreadCount > 0 && (
+                        <span 
+                          onClick={markAllAsRead}
+                          className="text-[10px] text-emerald-400 font-semibold cursor-pointer hover:underline"
+                        >
+                          Mark all read
+                        </span>
+                      )}
                     </div>
-                    <div className="divide-y divide-white/5">
-                      {mockNotifications.map((notif) => (
-                        <div key={notif.id} className="p-4 hover:bg-white/3 transition-colors">
-                          <p className={`text-xs ${notif.unread ? 'text-gray-200 font-semibold' : 'text-gray-400'}`}>
-                            {notif.message}
-                          </p>
-                          <span className="text-[10px] text-gray-500 font-mono mt-1 block">{notif.time}</span>
+                    <div className="divide-y divide-white/5 max-h-[300px] overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="p-6 text-center text-xs text-gray-500">
+                          No notifications yet.
                         </div>
-                      ))}
+                      ) : (
+                        notifications.slice(0, 5).map((notif) => (
+                          <div 
+                            key={notif.id} 
+                            onClick={() => handleNotificationClick(notif)}
+                            className={`p-4 hover:bg-white/3 transition-colors cursor-pointer flex gap-3 ${
+                              !notif.read ? 'bg-emerald-500/[0.02]' : ''
+                            }`}
+                          >
+                            <div className="mt-0.5 shrink-0">
+                              {notif.type === 'BREAKDOWN_CREATED' && (
+                                <AlertTriangle size={15} className="text-amber-500" />
+                              )}
+                              {notif.type === 'BREAKDOWN_APPROVED' && (
+                                <CheckCircle2 size={15} className="text-emerald-500" />
+                              )}
+                              {notif.type === 'BREAKDOWN_REJECTED' && (
+                                <XCircle size={15} className="text-red-500" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs ${!notif.read ? 'text-gray-100 font-semibold' : 'text-gray-400'}`}>
+                                {notif.message}
+                              </p>
+                              {notif.remarks && (
+                                <p className="text-[11px] text-gray-500 italic mt-1 bg-white/2 p-1.5 rounded border border-white/5">
+                                  Remarks: {notif.remarks}
+                                </p>
+                              )}
+                              <span className="text-[10px] text-gray-500 font-mono mt-1 block">
+                                {formatRelativeTime(notif.timestamp)}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 </>

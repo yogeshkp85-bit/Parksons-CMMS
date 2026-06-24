@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import logger from './logger';
+import { prismaQueryDurationHistogram } from '../metrics/prometheus';
 
 const prisma = new PrismaClient({
   log: [
@@ -10,8 +11,11 @@ const prisma = new PrismaClient({
   ],
 });
 
-// Intercept database queries and pipe them into the Winston logger
+// Intercept database queries and pipe them into the Winston logger & Prometheus metrics
 prisma.$on('query', (e) => {
+  // Track DB query latency
+  prismaQueryDurationHistogram.observe(e.duration);
+
   if (process.env.NODE_ENV === 'development') {
     logger.debug(`Query: ${e.query} | Params: ${e.params} | Duration: ${e.duration}ms`);
   }

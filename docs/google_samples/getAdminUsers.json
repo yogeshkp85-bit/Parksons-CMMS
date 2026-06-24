@@ -1,0 +1,15 @@
+{
+  "status": "success",
+  "users": [
+    {
+      "name": "YogeshK",
+      "email": "yogeshkp85@gmail.com",
+      "level": "superadmin"
+    },
+    {
+      "name": "ENGG.CN",
+      "email": "",
+      "level": "supervisor"
+    }
+  ]
+}

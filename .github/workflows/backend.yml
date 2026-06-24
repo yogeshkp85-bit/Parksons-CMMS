@@ -1,0 +1,59 @@
+name: Backend CI Pipeline
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  test-and-validate:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: cmms_db
+          POSTGRES_USER: cmms_user
+          POSTGRES_PASSWORD: cmms_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install dependencies
+      run: |
+        cd backend
+        npm ci
+
+    - name: Compile and Run Migrations
+      env:
+        DATABASE_URL: postgresql://cmms_user:cmms_password@localhost:5432/cmms_db
+      run: |
+        cd backend
+        npx prisma migrate dev --skip-generate
+
+    - name: Run Tests
+      env:
+        DATABASE_URL: postgresql://cmms_user:cmms_password@localhost:5432/cmms_db
+        JWT_SECRET: test_secret_for_local_development
+      run: |
+        cd backend
+        npm test
+
+    - name: Validate Backend Docker Build
+      run: |
+        cd backend
+        docker build -t cmms-backend-test:latest .

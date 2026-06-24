@@ -27,6 +27,8 @@ interface LogItem {
   durationMin?: number | null;
   createdBy: { name: string };
   remarks?: string | null;
+  actionTaken?: string | null;
+  rootCause?: string | null;
 }
 
 interface MasterOption {
@@ -34,10 +36,30 @@ interface MasterOption {
   name: string;
 }
 
+const STATIC_ROOT_CAUSE_CATEGORIES = [
+  { id: 'Normal Wear & Tear', name: 'Normal Wear & Tear' },
+  { id: 'Lack of Lubrication', name: 'Lack of Lubrication' },
+  { id: 'Operator Negligence', name: 'Operator Negligence' },
+  { id: 'Design Defect', name: 'Design Defect' },
+  { id: 'Material Fatigue', name: 'Material Fatigue' },
+  { id: 'External Factor', name: 'External Factor' },
+  { id: 'Utility Trip', name: 'Utility Trip' }
+];
+
+const STATIC_ACTION_CATEGORIES = [
+  { id: 'Part Replaced', name: 'Part Replaced' },
+  { id: 'Component Calibrated', name: 'Component Calibrated' },
+  { id: 'Temporary Repair', name: 'Temporary Repair' },
+  { id: 'Overhauled', name: 'Overhauled' },
+  { id: 'Lubricated & Cleaned', name: 'Lubricated & Cleaned' },
+  { id: 'Wiring Fixed', name: 'Wiring Fixed' },
+  { id: 'Reset System', name: 'Reset System' }
+];
+
 export const AdminApproval: React.FC = () => {
   const [pendingLogs, setPendingLogs] = useState<LogItem[]>([]);
-  const [actionCategories, setActionCategories] = useState<MasterOption[]>([]);
-  const [rootCauseCategories, setRootCauseCategories] = useState<MasterOption[]>([]);
+  const [actionCategories] = useState<MasterOption[]>(STATIC_ACTION_CATEGORIES);
+  const [rootCauseCategories] = useState<MasterOption[]>(STATIC_ROOT_CAUSE_CATEGORIES);
   
   // Selection/Editing states
   const [selectedLog, setSelectedLog] = useState<LogItem | null>(null);
@@ -53,22 +75,36 @@ export const AdminApproval: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Load reviews & master data
+  // Load reviews
   const fetchData = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [pendingRes, masterRes] = await Promise.all([
-        api.get('/breakdowns/pending'),
-        api.get('/breakdowns/master-data')
-      ]);
+      const pendingRes = await api.get('/breakdowns/pending');
 
-      if (pendingRes.data?.data) {
-        setPendingLogs(pendingRes.data.data);
-      }
-      if (masterRes.data?.data) {
-        setActionCategories(masterRes.data.data.actionTakenCategories || []);
-        setRootCauseCategories(masterRes.data.data.rootCauseCategories || []);
+      if (pendingRes.data?.data?.all) {
+        const pendingItems = pendingRes.data.data.all
+          .filter((item: any) => item.status === 'PENDING_REVIEW')
+          .map((item: any) => ({
+            id: item.refId,
+            breakdownNumber: item.refId,
+            date: item.date,
+            shift: { id: item.shift, name: item.shift },
+            department: { id: item.machineType, name: item.machineType, code: item.machineType },
+            machine: { id: item.machineName, name: item.machineName },
+            unit: item.unit ? { id: item.unit, name: item.unit } : null,
+            category: { id: item.category, name: item.category },
+            problemCategory: { id: item.problemType, name: item.problemType },
+            problemDescription: item.description || '',
+            startTime: item.timeStart || '',
+            endTime: item.timeEnd || '',
+            durationMin: item.duration ? parseInt(item.duration, 10) : 0,
+            createdBy: { name: item.submittedBy || 'N/A' },
+            remarks: item.remarks || '',
+            actionTaken: item.actionTaken || '',
+            rootCause: item.rootCause || ''
+          }));
+        setPendingLogs(pendingItems);
       }
     } catch (err) {
       console.error('Failed to load pending queue data', err);
@@ -85,9 +121,9 @@ export const AdminApproval: React.FC = () => {
   const handleSelectLog = (log: LogItem) => {
     setSelectedLog(log);
     setActionCatId('');
-    setActionDesc('');
+    setActionDesc(log.actionTaken || '');
     setRootCauseCatId('');
-    setRootCauseDesc('');
+    setRootCauseDesc(log.rootCause || '');
     setLogRemarks(log.remarks || '');
     setError(null);
   };
@@ -97,12 +133,17 @@ export const AdminApproval: React.FC = () => {
     setIsProcessing(true);
     setError(null);
     try {
-      await api.post(`/breakdowns/${selectedLog.id}/approve`, {
-        actionTakenCategoryId: actionCatId || undefined,
-        actionTakenDescription: actionDesc || undefined,
-        rootCauseCategoryId: rootCauseCatId || undefined,
-        rootCauseDescription: rootCauseDesc || undefined,
+      // 1. Save edits first via PUT /breakdowns/update
+      await api.put('/breakdowns/update', {
+        refId: selectedLog.id,
+        actionTaken: actionDesc || undefined,
+        rootCause: rootCauseDesc || undefined,
         remarks: logRemarks || undefined
+      });
+
+      // 2. Call approvals approve endpoint
+      await api.post('/approvals/approve', {
+        refId: selectedLog.id
       });
       
       setSuccessMsg(`Incident ${selectedLog.breakdownNumber} APPROVED successfully.`);
@@ -121,7 +162,9 @@ export const AdminApproval: React.FC = () => {
     setIsProcessing(true);
     setError(null);
     try {
-      await api.post(`/breakdowns/${selectedLog.id}/reject`);
+      await api.post('/approvals/reject', {
+        refId: selectedLog.id
+      });
       
       setSuccessMsg(`Incident ${selectedLog.breakdownNumber} REJECTED successfully.`);
       setSelectedLog(null);

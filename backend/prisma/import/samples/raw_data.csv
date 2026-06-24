@@ -1,0 +1,4 @@
+Timestamp,Ref ID,Date,Shift,Machine Type,Machine Name,Unit,Problem Type,Category,Description,Action Taken,Root Cause,Time Start,Time End,Duration Min,Attended By,Submitted By,Remarks,Status
+20/06/2026 08:30:15,PKS-20260620-001,2026-06-20,SHIFT_1,PRINTING,PrintKBA1,Feeder,Electrical,Breakdown,Feeder sensor failure,Replaced proximity sensor,Normal Wear & Tear,08:00:00,09:15:00,75,Ashish,yogeshkp85@gmail.com,Test remarks,PENDING_REVIEW
+20/06/2026 10:15:22,PKS-20260620-002,2026-06-20,SHIFT_1,PRINTING,PrintKBA1,Feeder,Electrical,Breakdown,Double sheet detector error,Adjusted sensor sensitivity,Normal Wear & Tear,10:00:00,10:30:00,30,Ashish,yogeshkp85@gmail.com,Test remarks,APPROVED
+20/06/2026 14:00:00,PKS-20260620-003,2026-06-20,SHIFT_2,CORRUGATION,Champion,Splicer,Mechanical,Breakdown,Paper roll splice failure,Cleaned splice head,Operator Negligence,13:30:00,14:15:00,45,Suresh,yogeshkp85@gmail.com,Splice remarks,PENDING_REVIEW

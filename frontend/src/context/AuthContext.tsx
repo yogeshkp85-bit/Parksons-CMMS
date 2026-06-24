@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import api, { setAccessToken, AUTH_EVENTS } from '../services/api';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import api, { setAccessToken } from '../services/api';
 
 interface Role {
   name: string;
@@ -36,104 +36,66 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Decode helper
-const parseJwt = (token: string) => {
-  try {
-    const base64Url = token.split('.')[1];
-    if (!base64Url) return null;
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      window
-        .atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [accessToken, setAccessTokenState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const refreshTimerRef = useRef<any>(null);
 
-  // Setup refresh timer
-  const scheduleTokenRefresh = (token: string) => {
-    // Clear old timer
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
-    }
-
-    const decoded = parseJwt(token);
-    if (!decoded || !decoded.exp) return;
-
-    // Refresh token 1 minute before expiry (exp is in seconds)
-    const expTime = decoded.exp * 1000;
-    const refreshDelay = expTime - Date.now() - 60000; // 1 minute before 15m expires
-
-    if (refreshDelay > 0) {
-      refreshTimerRef.current = setTimeout(async () => {
-        try {
-          console.log('[AuthContext] Triggering automatic token refresh...');
-          const res = await api.post('/auth/refresh');
-          const newToken = res.data?.data?.token;
-          if (newToken) {
-            updateSession(newToken);
-          }
-        } catch (err) {
-          console.error('[AuthContext] Automatic refresh failed, logging out.', err);
-          handleLogoutCleanup();
-        }
-      }, refreshDelay);
-    }
-  };
-
-  const updateSession = (token: string) => {
-    setAccessToken(token);
-    setAccessTokenState(token);
+  const mapLevelToRoleAndPermissions = (level: string) => {
+    const normalized = String(level || '').trim().toLowerCase().replace('_', '');
     
-    const decoded = parseJwt(token);
-    if (decoded) {
-      setUser({
-        id: decoded.id,
-        name: decoded.name,
-        email: decoded.email,
-        role: {
-          name: decoded.role === 'SUPER_ADMIN' ? 'Super Admin' : decoded.role,
-          code: decoded.role
-        },
-        plantId: decoded.plantId
-      });
-      setPermissions(decoded.permissions || []);
-      scheduleTokenRefresh(token);
+    let role = { name: 'Viewer', code: 'viewer' };
+    let permissions: string[] = ['Dashboard'];
+
+    if (normalized === 'superadmin') {
+      role = { name: 'Super Admin', code: 'superadmin' };
+      permissions = ['Dashboard', 'Create', 'Edit', 'Delete', 'Approve', 'Reports', 'Masters', 'Users'];
+    } else if (normalized === 'admin') {
+      role = { name: 'Admin', code: 'admin' };
+      permissions = ['Dashboard', 'Create', 'Edit', 'Delete', 'Approve', 'Reports', 'Masters', 'Users'];
+    } else if (normalized === 'manager') {
+      role = { name: 'Manager', code: 'manager' };
+      permissions = ['Dashboard', 'Approve', 'Reports'];
+    } else if (normalized === 'supervisor') {
+      role = { name: 'Supervisor', code: 'supervisor' };
+      permissions = ['Dashboard', 'Create', 'Edit', 'Approve', 'Reports'];
+    } else if (normalized === 'technician') {
+      role = { name: 'Technician', code: 'technician' };
+      permissions = ['Dashboard', 'Create'];
+    } else {
+      role = { name: 'Viewer', code: 'viewer' };
+      permissions = ['Dashboard'];
     }
+
+    return { role, permissions };
   };
 
   const handleLogoutCleanup = () => {
+    localStorage.removeItem('cmms_user');
+    localStorage.removeItem('cmms_token');
     setAccessToken(null);
     setAccessTokenState(null);
     setUser(null);
     setPermissions([]);
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
-    }
   };
 
-  // Perform silent token refresh check on mount
+  // Perform token/session restoration from localStorage on mount
   const checkSession = async () => {
     try {
-      const res = await api.post('/auth/refresh');
-      const token = res.data?.data?.token;
-      if (token) {
-        updateSession(token);
+      const storedUser = localStorage.getItem('cmms_user');
+      const storedToken = localStorage.getItem('cmms_token');
+      if (storedUser && storedToken) {
+        const parsedUser = JSON.parse(storedUser);
+        const mapped = mapLevelToRoleAndPermissions(parsedUser.role?.code || 'viewer');
+        setAccessToken(storedToken);
+        setAccessTokenState(storedToken);
+        setUser(parsedUser);
+        setPermissions(mapped.permissions);
+      } else {
+        handleLogoutCleanup();
       }
     } catch (err) {
-      // Refresh failed or no cookie exists, which is expected for fresh sessions
       handleLogoutCleanup();
     } finally {
       setIsLoading(false);
@@ -144,15 +106,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const res = await api.post('/auth/login', { email, password });
-      const token = res.data?.data?.token;
-      if (token) {
-        updateSession(token);
+      if (res.data?.success && res.data?.data?.status === 'success') {
+        const token = res.data.data.token;
+        const userData = res.data.data.user;
+        const mapped = mapLevelToRoleAndPermissions(userData.level);
+        
+        const fullUser: User = {
+          id: userData.email,
+          name: userData.name,
+          email: userData.email,
+          role: mapped.role,
+          plantId: 'daman-plant'
+        };
+
+        // Cache in localStorage
+        localStorage.setItem('cmms_user', JSON.stringify(fullUser));
+        localStorage.setItem('cmms_token', token);
+
+        setAccessToken(token);
+        setAccessTokenState(token);
+        setUser(fullUser);
+        setPermissions(mapped.permissions);
+        setIsLoading(false);
+        return; // Login succeeded
       }
+      throw new Error(res.data?.message || 'Login failed');
     } catch (error) {
       handleLogoutCleanup();
-      throw error;
-    } finally {
       setIsLoading(false);
+      throw error;
     }
   };
 
@@ -160,7 +142,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await api.post('/auth/logout');
     } catch (error) {
-      console.error('Logout request failed', error);
+      console.warn('Backend logout call skipped/failed', error);
     } finally {
       handleLogoutCleanup();
     }
@@ -177,34 +159,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await api.post('/auth/register', payload);
   };
 
-  // Listen to API events (expired session or token updates)
   useEffect(() => {
-    const onSessionExpired = () => {
-      console.warn('[AuthContext] Session expired event received, logging out.');
-      handleLogoutCleanup();
-    };
-
-    const onTokenRefreshed = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      const newToken = customEvent.detail;
-      if (newToken) {
-        updateSession(newToken);
-      }
-    };
-
-    window.addEventListener(AUTH_EVENTS.SESSION_EXPIRED, onSessionExpired);
-    window.addEventListener(AUTH_EVENTS.TOKEN_REFRESHED, onTokenRefreshed);
-
-    // Initial check
     checkSession();
-
-    return () => {
-      window.removeEventListener(AUTH_EVENTS.SESSION_EXPIRED, onSessionExpired);
-      window.removeEventListener(AUTH_EVENTS.TOKEN_REFRESHED, onTokenRefreshed);
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-      }
-    };
   }, []);
 
   return (

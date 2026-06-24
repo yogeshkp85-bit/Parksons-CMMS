@@ -1,0 +1,722 @@
+{
+  "status": "success",
+  "machines": {
+    "PRINTING": {
+      "PrintKBA1": [
+        "Full Machine",
+        "Feeder",
+        "PU1",
+        "PU2",
+        "PU3",
+        "PU4",
+        "PU5",
+        "PU6",
+        "Coating",
+        "Uvlights / IR light",
+        "Delivery",
+        "Technotrans",
+        "Compressor"
+      ],
+      "PrintKBA2": [
+        "Full Machine",
+        "Feeder",
+        "PU1",
+        "PU2",
+        "PU3",
+        "PU4",
+        "PU5",
+        "PU6",
+        "Coating",
+        "Uvlights / IR light",
+        "Delivery",
+        "Technotrans",
+        "Compressor"
+      ],
+      "PrintKBA3": [
+        "Full Machine",
+        "Feeder",
+        "PU1",
+        "PU2",
+        "PU3",
+        "PU4",
+        "PU5",
+        "PU6",
+        "PU7",
+        "Coating",
+        "Uvlights / IR light",
+        "Delivery",
+        "Technotrans",
+        "Compressor"
+      ],
+      "HeidelbergCX1": [
+        "Full Machine",
+        "Feeder",
+        "PU1",
+        "PU2",
+        "PU3",
+        "PU4",
+        "PU5",
+        "PU6",
+        "PU7",
+        "Coating",
+        "Uvlights / IR light",
+        "Delivery",
+        "Technotrans",
+        "Compressor"
+      ],
+      "HeidelbergCX2": [
+        "Full Machine",
+        "Feeder",
+        "PU1",
+        "PU2",
+        "PU3",
+        "PU4",
+        "PU5",
+        "PU6",
+        "PU7",
+        "Coating",
+        "Uvlights / IR light",
+        "Delivery",
+        "Technotrans",
+        "Compressor"
+      ],
+      "Roland": [
+        "Full Machine",
+        "Feeder",
+        "PU1",
+        "PU2",
+        "Coating",
+        "Uvlights / IR light",
+        "Delivery",
+        "Technotrans",
+        "Compressor"
+      ],
+      "GRAVIER": [
+        "Full Machine",
+        "Feeder",
+        "PU1",
+        "Coating",
+        "Uvlights / IR light",
+        "Delivery",
+        "Compressor"
+      ],
+      "Albo": [
+        "Full machine",
+        "Comapctor",
+        "Turner",
+        "Blower"
+      ],
+      "UVcoater": [
+        "Full Machine",
+        "Feeder",
+        "Infeedunit",
+        "Conveyor",
+        "Uvlights",
+        "Delivery",
+        "Coating unit"
+      ],
+      "Sheeter": [
+        "Full Machine",
+        "Reelstand",
+        "Helicalcutter",
+        "Conveyor",
+        "Delivery",
+        "Suctionblower",
+        "Ductcollector"
+      ],
+      "CTP": [
+        "Plateexposer",
+        "Plateprocessor"
+      ],
+      "Printingplant": [
+        "Electricity Down",
+        "Compressor",
+        "Chiller water supply",
+        "Technotrans water",
+        "DG set"
+      ],
+      "Samplemaking": [
+        "cutting head",
+        "Travel motor",
+        "Bed",
+        "Compressor"
+      ]
+    },
+    "CORRUGATION": {
+      "Champion": [
+        "Full machine",
+        "MillRollstand",
+        "Splicer",
+        "Singlefacer",
+        "Steamsupply",
+        "Feeder",
+        "Helicalcutter",
+        "Stacker"
+      ],
+      "BHSCORRU": [
+        "Full Machine",
+        "MillRollstand",
+        "Splicer",
+        "Singlefacer",
+        "Steamsupply",
+        "Feeder",
+        "Helicalcutter",
+        "Stacker"
+      ],
+      "Lamify1Old": [
+        "Full Machine",
+        "Sheetfeeder",
+        "Flutefeeder",
+        "Laminationunit",
+        "Belttransfer",
+        "Stacker"
+      ],
+      "Lamify2New": [
+        "Full Machine",
+        "Sheetfeeder",
+        "Flutefeeder",
+        "Laminationunit",
+        "Belttransfer",
+        "Stacker"
+      ],
+      "Gluekitchen": [
+        "Mixing tank",
+        "Cuastic tank",
+        "supply pump"
+      ],
+      "Nflute": [
+        "MillRollstand",
+        "Splicer",
+        "Singlefacer",
+        "Steamsupply",
+        "Feeder",
+        "Helicalcutter"
+      ]
+    },
+    "NFDIECUTTING": {
+      "Blanker1": [
+        "Full Machine",
+        "Feeder",
+        "Die platten",
+        "Delivery",
+        "Gripperbar",
+        "Stripping",
+        "Blanking"
+      ],
+      "Blanker2": [
+        "Full Machine",
+        "Feeder",
+        "Die platten",
+        "Delivery",
+        "Gripperbar",
+        "Stripping",
+        "Blanking"
+      ],
+      "BMFOIL": [
+        "Full Machine",
+        "Feeder",
+        "Die platten",
+        "Delivery",
+        "Gripperbar",
+        "Foilstamping",
+        "Blanking"
+      ],
+      "BMAFOIL": [
+        "Full Machine",
+        "Feeder",
+        "Die platten",
+        "Delivery",
+        "Gripperbar",
+        "Foilstamping",
+        "Blanking"
+      ],
+      "YOKO": [
+        "Full Machine",
+        "Feeder",
+        "Die platten",
+        "Delivery",
+        "Gripperbar",
+        "Foilstamping",
+        "Blanking"
+      ],
+      "DIECUTTING8": [
+        "Full Machine",
+        "Feeder",
+        "Die platten",
+        "Delivery",
+        "Gripperbar",
+        "Stripping",
+        "Blanking"
+      ],
+      "NOVA1": [
+        "Full Machine",
+        "Feeder",
+        "Die platten",
+        "Delivery",
+        "Gripperbar",
+        "Stripping",
+        "Blanking"
+      ],
+      "NOVA2": [
+        "Full Machine",
+        "Feeder",
+        "Die platten",
+        "Delivery",
+        "Gripperbar",
+        "Stripping",
+        "Blanking"
+      ],
+      "NOVA5": [
+        "Full Machine",
+        "Feeder",
+        "Die platten",
+        "Delivery",
+        "Gripperbar",
+        "Stripping",
+        "Blanking"
+      ],
+      "NOVA6": [
+        "Full Machine",
+        "Feeder",
+        "Die platten",
+        "Delivery",
+        "Gripperbar",
+        "Stripping",
+        "Blanking"
+      ],
+      "Spanthera1": [
+        "Full Machine",
+        "Feeder",
+        "Die platten",
+        "Delivery",
+        "Gripperbar",
+        "Stripping",
+        "Blanking"
+      ],
+      "Spanthera2": [
+        "Full Machine",
+        "Feeder",
+        "Die platten",
+        "Delivery",
+        "Gripperbar",
+        "Stripping",
+        "Blanking"
+      ]
+    },
+    "NFPASTING": {
+      "Alpina": [
+        "Feeder",
+        "Alingmentunit",
+        "Prebreaker",
+        "Glueunit",
+        "HSSsystem",
+        "Folder",
+        "Transfer",
+        "Delivery"
+      ],
+      "Expertfold": [
+        "Full Machine",
+        "Feeder",
+        "Alingmentunit",
+        "Prebreaker",
+        "Glueunit",
+        "HSSsystem",
+        "Folder",
+        "Transfer",
+        "Delivery"
+      ],
+      "Media68": [
+        "Full Machine",
+        "Feeder",
+        "Alingmentunit",
+        "Prebreaker",
+        "Glueunit",
+        "HSSsystem",
+        "Folder",
+        "Transfer",
+        "Delivery"
+      ],
+      "VisionFold": [
+        "Full Machine",
+        "Feeder",
+        "Alingmentunit",
+        "Prebreaker",
+        "Glueunit",
+        "HSSsystem",
+        "Folder",
+        "Transfer",
+        "Delivery"
+      ],
+      "Fuego": [
+        "Full Machine",
+        "Feeder",
+        "Alingmentunit",
+        "Prebreaker",
+        "Glueunit",
+        "HSSsystem",
+        "Folder",
+        "Transfer",
+        "Delivery"
+      ],
+      "Mistral": [
+        "Full Machine",
+        "Feeder",
+        "Alingmentunit",
+        "Prebreaker",
+        "Glueunit",
+        "HSSsystem",
+        "Folder",
+        "Transfer",
+        "Delivery"
+      ],
+      "Blankwiser": [
+        "Full Machine",
+        "Feeder",
+        "Alingmentunit",
+        "Glueunit",
+        "Folder",
+        "Delivery"
+      ],
+      "Other": [
+        "Airalunit"
+      ]
+    },
+    "LAMINATION": {
+      "YILI": [
+        "Full Machine",
+        "Feeder",
+        "Heating roller",
+        "Pressing",
+        "Knifecutter",
+        "Delivery"
+      ],
+      "SLITTER": [
+        "Full Machine",
+        "Unwinder",
+        "Rewinder",
+        "Cutter",
+        "Crane motor"
+      ],
+      "PERFECTA": [
+        "Full Machine",
+        "Feedingtable",
+        "CuttingKnife",
+        "Pressing",
+        "BackGauge",
+        "HydrualicPump",
+        "MainDriveClutch"
+      ],
+      "FAIDA": [
+        "Full Machine",
+        "Feedingtable",
+        "CuttingKnife",
+        "Pressing",
+        "BackGauge",
+        "HydrualicPump",
+        "MainDriveClutch"
+      ],
+      "GFM lamination": [
+        "Full Machine",
+        "Feeder",
+        "Feed table",
+        "Heat roll",
+        "Pressure roll",
+        "Main motor",
+        "Cutter",
+        "Deliver"
+      ]
+    },
+    "FLDIECUTTING": {
+      "NOVACUT3": [
+        "Full Machine",
+        "Feeder",
+        "Dieplatten",
+        "Delivery",
+        "Gripperbar",
+        "Stripping"
+      ],
+      "NOVACUT4": [
+        "Full Machine",
+        "Feeder",
+        "Dieplatten",
+        "Delivery",
+        "Gripperbar",
+        "Stripping"
+      ],
+      "SP102Diecut": [
+        "Full Machine",
+        "Feeder",
+        "Dieplatten",
+        "Delivery",
+        "Gripperbar",
+        "Stripping"
+      ],
+      "SP102": [
+        "Full Machine",
+        "Feeder",
+        "Dieplatten",
+        "Delivery",
+        "Gripperbar",
+        "Stripping"
+      ]
+    },
+    "FLPASTING": {
+      "LILA1": [
+        "Full Machine",
+        "Feeder",
+        "Alingmentunit",
+        "Prebreaker",
+        "Glueunit",
+        "HSSsystem",
+        "Folder",
+        "Transfer"
+      ],
+      "LILA2": [
+        "Full Machine",
+        "Feeder",
+        "Alingmentunit",
+        "Prebreaker",
+        "Glueunit",
+        "HSSsystem",
+        "Folder",
+        "Transfer"
+      ],
+      "PAKTEK1": [
+        "Full Machine",
+        "Feeder",
+        "Alingmentunit",
+        "Prebreaker",
+        "Glueunit",
+        "HSSsystem",
+        "Folder",
+        "Transfer"
+      ],
+      "PAKTEK2": [
+        "Full Machine",
+        "Feeder",
+        "Alingmentunit",
+        "Prebreaker",
+        "Glueunit",
+        "HSSsystem",
+        "Folder",
+        "Transfer"
+      ],
+      "LaminaGlueline": [
+        "Full Machine",
+        "Feeder",
+        "Alingmentunit",
+        "Prebreaker",
+        "Glueunit",
+        "HSSsystem",
+        "Folder",
+        "Transfer"
+      ]
+    },
+    "HANDPUNCING": {
+      "ACME": [
+        "Full Machine",
+        "Maindriveclutch",
+        "DiePlatten"
+      ],
+      "BHARAT": [
+        "Full Machine",
+        "Main drive clutch",
+        "Die Platten"
+      ],
+      "HEIDO": [
+        "Full Machine",
+        "Main drive clutch",
+        "Die Platten"
+      ],
+      "Robus": [
+        "Full Machine",
+        "Sensor"
+      ],
+      "Autostrapping": [
+        "Strapping head",
+        "Heater"
+      ]
+    },
+    "LIQUIDLINE": {
+      "Fortuna": [
+        "Feeder",
+        "Blower",
+        "Scaving",
+        "Chiller",
+        "Burner",
+        "Folder",
+        "Transfer",
+        "Metaldetector",
+        "Tapping",
+        "Register unit"
+      ],
+      "Sheeter": [
+        "Reelstand",
+        "Helicalcutter",
+        "Conveyor",
+        "Delivery",
+        "Suctionblower",
+        "Ductcollector"
+      ],
+      "Slitter": [
+        "Unwinder",
+        "Rewinder",
+        "Cutter"
+      ],
+      "Blanker1": [
+        "Full Machine",
+        "Feeder",
+        "Die platten",
+        "Delivery",
+        "Gripperbar",
+        "Stripping"
+      ],
+      "Fortuna old": [
+        "Full Machine",
+        "Feeder",
+        "Blower",
+        "Scaving",
+        "Chiller",
+        "Burner",
+        "Folder",
+        "Transfer",
+        "Metaldetector",
+        "Tapping",
+        "Register unit"
+      ],
+      "Fortuna New": [
+        "Full Machine",
+        "Feeder",
+        "Blower",
+        "Scaving",
+        "Chiller",
+        "Burner",
+        "Folder",
+        "Transfer",
+        "Metaldetector",
+        "Tapping",
+        "Register unit"
+      ]
+    },
+    "OTHERS": {
+      "WindowPatching1": [
+        "Machine"
+      ],
+      "WindowPatching2": [
+        "Machine"
+      ],
+      "OfflineBlanker": [
+        "Machine"
+      ],
+      "BatchCounter": [
+        "Machine"
+      ],
+      "AutoPrintSorting1": [
+        "Machine"
+      ],
+      "AutoPrintSorting2": [
+        "Machine"
+      ],
+      "PokerCard": [
+        "Machine"
+      ],
+      "LablePasting1": [
+        "Machine"
+      ],
+      "LablePasting2": [
+        "Machine"
+      ],
+      "LablePasting3": [
+        "Machine"
+      ],
+      "InkmatchingMixt1": [
+        "Machine"
+      ],
+      "InkmatchingMixt2": [
+        "Machine"
+      ],
+      "Others machine": [
+        "Units"
+      ]
+    },
+    "Utility": {
+      "Compressor": [
+        "VSD90",
+        "VSD75",
+        "VSD22",
+        "GA22",
+        "GA15",
+        "GA15old",
+        "GA22Old"
+      ]
+    },
+    "Convertingplant": {
+      "Electricitydown": [
+        "Main supply",
+        "DG Set",
+        "Transformer"
+      ]
+    },
+    "Printingplant": {
+      "Utility": [
+        "Electricity Down",
+        "Compressor",
+        "Chiller water supply",
+        "Technotrans water",
+        "DG set"
+      ],
+      "Electricitydown": [
+        "Main supply",
+        "DG Set"
+      ],
+      "Compressor": [
+        "Main compressor",
+        "Backup compressor"
+      ]
+    },
+    "SCRAP": {
+      "ScrapCutting1": [
+        "Machine"
+      ],
+      "ScrapCutting2": [
+        "Machine"
+      ],
+      "ScrapCutting3": [
+        "Machine"
+      ]
+    },
+    "GMP Work": {
+      "FULL PLANT": [
+        "GMP MECHANICAL",
+        "GMP ELECTRICAL",
+        "GMP SAFETY",
+        "GMP UTILITY"
+      ]
+    },
+    "Electrical Panel": {
+      "LT room panel": [
+        "UPS",
+        "Battery Bank",
+        "Department area Panel",
+        "Transformer1",
+        "Transformer2",
+        "Earthing"
+      ],
+      "HVAC Room panel": [
+        "HVAC1",
+        "HVAC2"
+      ],
+      "Machine Panel": [
+        "Printing Area",
+        "Die Cutting",
+        "Pasting",
+        "Fluted",
+        "New Plant"
+      ],
+      "Main Incomer": [
+        "Feeder1",
+        "Feeder2"
+      ]
+    }
+  }
+}

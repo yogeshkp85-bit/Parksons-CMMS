@@ -1,0 +1,4 @@
+Machine Type,Machine Name,Units
+PRINTING,PrintKBA1,"Feeder,PU1,PU2,PU3,PU4,PU5,PU6,Coating,Uvlights / IR light,Delivery,Technotrans,Compressor"
+PRINTING,PrintKBA2,"Feeder,PU1,PU2,PU3,PU4,PU5,PU6,Coating,Uvlights / IR light,Delivery,Technotrans,Compressor"
+CORRUGATION,Champion,"MillRollstand,Splicer,Singlefacer,Steamsupply,Feeder,Helicalcutter,Stacker"

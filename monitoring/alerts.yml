@@ -1,0 +1,62 @@
+groups:
+  - name: cmms_alerts
+    rules:
+      # 1. API Latency Alert
+      - alert: HighAPILatency
+        expr: rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m]) > 3
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API Latency on {{ $labels.route }}"
+          description: "Average API response time is above 3 seconds for route {{ $labels.route }} (current value: {{ $value }}s)"
+
+      # 2. PostgreSQL Down Alert
+      - alert: PostgresDown
+        expr: up{job="postgres"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL Database Down"
+          description: "The PostgreSQL database container is unreachable or down."
+
+      # 3. HTTP 5xx Error Rate Alert
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100 > 5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High HTTP 5xx Error Rate"
+          description: "HTTP 5xx error rate is above 5% (current value: {{ $value }}%)"
+
+      # 4. Host Memory Alert
+      - alert: HostMemoryUnderPressure
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Memory Usage"
+          description: "System memory usage is above 85% (current value: {{ $value }}%)"
+
+      # 5. Host Disk Alert
+      - alert: HostDiskSpaceRunningLow
+        expr: (node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_free_bytes{mountpoint="/"}) / node_filesystem_size_bytes{mountpoint="/"} * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Disk Space Usage"
+          description: "Disk usage on root partition is above 90% (current value: {{ $value }}%)"
+
+      # 6. Socket Connection Drop/Disconnect Spike Alert
+      - alert: SocketDisconnectSpike
+        expr: deriv(socket_active_connections[2m]) < -5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Socket Disconnect Spike"
+          description: "Active Socket.IO connections dropped sharply in the last 2 minutes."

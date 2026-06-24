@@ -147,9 +147,9 @@ model Unit {
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
 
   section       Section        @relation(fields: [sectionId], references: [id])
+  machines      Machine[]
   breakdownLogs BreakdownLog[]
 
   @@unique([sectionId, code])
@@ -173,10 +173,13 @@ model MachineCategory {
 
 model Machine {
   id                String    @id @default(uuid()) @db.Uuid
-  machineId         String    @unique @db.Uuid
+  machineId         String    @unique
   name              String
   machineCategoryId String    @map("machine_category_id") @db.Uuid
+  unitId            String?   @map("unit_id") @db.Uuid
   sectionId         String    @map("section_id") @db.Uuid
+  parentMachineId   String?   @map("parent_machine_id") @db.Uuid
+  isSubAssembly     Boolean   @default(false) @map("is_sub_assembly")
   oem               String?
   model             String?
   serialNumber      String?
@@ -191,7 +194,10 @@ model Machine {
   deletedAt         DateTime? @map("deleted_at")
 
   category      MachineCategory @relation(fields: [machineCategoryId], references: [id])
+  unit          Unit?           @relation(fields: [unitId], references: [id])
   section       Section         @relation(fields: [sectionId], references: [id])
+  parentMachine Machine?        @relation("MachineHierarchy", fields: [parentMachineId], references: [id])
+  subMachines   Machine[]       @relation("MachineHierarchy")
   subAssemblies SubAssembly[]
   breakdowns    BreakdownLog[]
   pmSchedules   PmSchedule[]
@@ -522,13 +528,22 @@ model MachineHistory {
 
 model Notification {
   id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
+  tenantId  String   @default("default") @map("tenant_id")
+  userEmail String   @map("user_email")
+  type      String
+  title     String
   message   String
-  isRead    Boolean  @default(false)
+  refId     String?  @map("ref_id")
+  machine   String?
+  remarks   String?
+  isRead    Boolean  @default(false) @map("is_read")
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([userEmail, isRead])
+  @@index([tenantId])
   @@map("notifications")
 }
+
 
 model Report {
   id        String   @id @default(uuid()) @db.Uuid
@@ -556,4 +571,108 @@ model Configuration {
   value String
 
   @@map("configurations")
+}
+// =========================================================================
+// PHASE 7.1: OPTION 1 FLAT TABLES (SHEET MIRRORS)
+// =========================================================================
+
+model RawData {
+  id             String    @id @default(uuid()) @db.Uuid
+  Timestamp      DateTime?
+  Ref_ID         String    @unique
+  Date           String?
+  Shift          String?
+  Machine_Type   String?
+  Machine_Name   String?
+  Unit           String?
+  Problem_Type   String?
+  Category       String?
+  Description    String?
+  Action_Taken   String?
+  Root_Cause     String?
+  Time_Start     String?
+  Time_End       String?
+  Duration_Min   Float?
+  Attended_By    String?
+  Submitted_By   String?
+  Remarks        String?
+  Status         String?   @default("PENDING_REVIEW")
+
+  @@map("raw_data")
+}
+
+model MachineData {
+  id           String @id @default(uuid()) @db.Uuid
+  machine_type String
+  machine_name String @unique
+  units        String
+
+  @@map("machine_data")
+}
+
+model AdminUsers {
+  id       String @id @default(uuid()) @db.Uuid
+  name     String
+  email    String @unique
+  password String
+  level    String
+
+  @@map("admin_users")
+}
+
+model FinalData {
+  id                 String  @id @default(uuid()) @db.Uuid
+  Ref_ID             String  @unique
+  Month_Year         String?
+  Date               String?
+  Shift              String?
+  Machine_Type       String?
+  Machine_Name       String?
+  Unit               String?
+  Problem_Type       String?
+  Category           String?
+  Description        String?
+  Action_Taken       String?
+  Time_Start         String?
+  Time_End           String?
+  Minutes            Float?
+  BD_Flag            Int?
+  Available_Time_Min Float?
+  Attended_By        String?
+
+  @@map("final_data")
+}
+
+model HistoricalKPI {
+  id              String  @id @default(uuid()) @db.Uuid
+  FY              String?
+  Month           String?
+  Machine         String?
+  Available_Time  Float?
+  Breakdown_Time  Float?
+  Breakdown_Count Int?
+  Uptime          Float?
+  MTTR            Float?
+  MTBF            Float?
+  Availability    Float?
+
+  @@map("historical_kpi")
+}
+
+// =========================================================================
+// PHASE 15.2A: SYNCHRONIZATION LOGS
+// =========================================================================
+
+model SyncLog {
+  id               String    @id @default(uuid()) @db.Uuid
+  entityName       String    @map("entity_name")
+  recordsProcessed Int       @default(0) @map("records_processed")
+  recordsInserted  Int       @default(0) @map("records_inserted")
+  recordsUpdated   Int       @default(0) @map("records_updated")
+  status           String
+  errorMessage     String?   @map("error_message")
+  startedAt        DateTime  @default(now()) @map("started_at")
+  completedAt      DateTime? @map("completed_at")
+
+  @@map("sync_logs")
 }

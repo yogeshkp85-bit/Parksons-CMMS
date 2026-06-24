@@ -2,6 +2,7 @@ import { Response } from 'express';
 import prisma from '../utils/db';
 import logger from '../utils/logger';
 import { AuthenticatedRequest } from '../types/auth.types';
+import { notifyBreakdownCreated, notifyBreakdownApproved, notifyBreakdownRejected, NotificationType } from '../services/socket.service';
 
 // Helper to format Date as dd/MM/yyyy
 const formatDateString = (d: Date): string => {
@@ -140,6 +141,20 @@ export const createBreakdown = async (req: AuthenticatedRequest, res: Response) 
         userAgent: req.headers['user-agent']
       }
     });
+
+    // Real-time notification: Alert supervisors/managers about the new breakdown
+    try {
+      notifyBreakdownCreated({
+        type: NotificationType.BREAKDOWN_CREATED,
+        title: 'New Breakdown Reported',
+        message: `${machine.name} — ${problemDescription}`,
+        refId: refId,
+        machine: machine.name,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (socketErr) {
+      logger.warn(`[Socket] Failed to emit BREAKDOWN_CREATED for ${refId}: ${socketErr}`);
+    }
 
     return res.status(201).json({
       status: 'success',
@@ -285,6 +300,31 @@ export const approveBreakdown = async (req: AuthenticatedRequest, res: Response)
       }
     });
 
+    // Real-time notification: Alert the technician who created this breakdown
+    try {
+      const creator = await prisma.user.findUnique({
+        where: { id: existingLog.createdByUserId },
+        select: { email: true }
+      });
+      const approvedMachine = await prisma.machine.findUnique({
+        where: { id: existingLog.machineId },
+        select: { name: true }
+      });
+      if (creator) {
+        notifyBreakdownApproved({
+          type: NotificationType.BREAKDOWN_APPROVED,
+          title: 'Breakdown Approved',
+          message: `${existingLog.breakdownNumber} on ${approvedMachine?.name || 'Unknown'} has been approved`,
+          refId: existingLog.breakdownNumber,
+          machine: approvedMachine?.name || '',
+          timestamp: new Date().toISOString(),
+          technicianEmail: creator.email,
+        });
+      }
+    } catch (socketErr) {
+      logger.warn(`[Socket] Failed to emit BREAKDOWN_APPROVED for ${existingLog.breakdownNumber}: ${socketErr}`);
+    }
+
     return res.status(200).json({
       status: 'success',
       message: 'Incident approved successfully.',
@@ -333,6 +373,32 @@ export const rejectBreakdown = async (req: AuthenticatedRequest, res: Response) 
         userAgent: req.headers['user-agent']
       }
     });
+
+    // Real-time notification: Alert the technician with rejection remarks
+    try {
+      const creator = await prisma.user.findUnique({
+        where: { id: existingLog.createdByUserId },
+        select: { email: true }
+      });
+      const rejectedMachine = await prisma.machine.findUnique({
+        where: { id: existingLog.machineId },
+        select: { name: true }
+      });
+      if (creator) {
+        notifyBreakdownRejected({
+          type: NotificationType.BREAKDOWN_REJECTED,
+          title: 'Breakdown Rejected',
+          message: `${existingLog.breakdownNumber} on ${rejectedMachine?.name || 'Unknown'} has been rejected`,
+          refId: existingLog.breakdownNumber,
+          machine: rejectedMachine?.name || '',
+          timestamp: new Date().toISOString(),
+          technicianEmail: creator.email,
+          remarks: req.body.remarks || 'No remarks provided',
+        });
+      }
+    } catch (socketErr) {
+      logger.warn(`[Socket] Failed to emit BREAKDOWN_REJECTED for ${existingLog.breakdownNumber}: ${socketErr}`);
+    }
 
     return res.status(200).json({
       status: 'success',

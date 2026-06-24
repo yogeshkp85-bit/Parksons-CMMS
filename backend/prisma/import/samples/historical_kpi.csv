@@ -1,0 +1,3 @@
+FY,Month,Machine,Available Time,Breakdown Time,Breakdown Count,Uptime,MTTR,MTBF,Availability
+2026-2027,Jun,PrintKBA1,44640,120,2,44520,60,22260,99.73
+2026-2027,Jun,Champion,44640,45,1,44595,45,44595,99.90

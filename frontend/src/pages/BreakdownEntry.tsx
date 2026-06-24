@@ -139,50 +139,96 @@ export const BreakdownEntry: React.FC = () => {
     return `Auto-detected: ${initDetails.shiftName} (${initDetails.hoursText}) based on current time (Shift Date: ${formattedDate})`;
   })();
 
+  // Static Dropdowns
+  const STATIC_SHIFTS: Shift[] = [
+    { id: 'SHIFT_1', name: 'First Shift', code: 'SHIFT_1' },
+    { id: 'SHIFT_2', name: 'Second Shift', code: 'SHIFT_2' },
+    { id: 'SHIFT_3', name: 'Third Shift', code: 'SHIFT_3' }
+  ];
+
+  const STATIC_PROBLEM_CATEGORIES: ProblemCategory[] = [
+    { id: 'Electrical', name: 'Electrical' },
+    { id: 'Mechanical', name: 'Mechanical' },
+    { id: 'Pneumatic', name: 'Pneumatic' },
+    { id: 'Hydraulic', name: 'Hydraulic' },
+    { id: 'Utility', name: 'Utility' },
+    { id: 'Process', name: 'Process' },
+    { id: 'Others', name: 'Others' }
+  ];
+
+  const STATIC_CATEGORIES: Category[] = [
+    { id: 'Breakdown', name: 'Breakdown' },
+    { id: 'Planned Maintenance (PM)', name: 'Planned Maintenance (PM)' },
+    { id: 'Tooling Change', name: 'Tooling Change' },
+    { id: 'Utility Downtime', name: 'Utility Downtime' },
+    { id: 'Others', name: 'Others' }
+  ];
+
+  const STATIC_TECHNICIANS = [
+    "Ashish", "Shivaji", "Bipin", "Ketan", "Sanjay", "Dinesh", "Vijay", "Amit", "Rajesh", "Nilesh", "YogeshK"
+  ];
 
   // Load masters on mount
   useEffect(() => {
     const fetchMasterData = async () => {
       try {
-        const res = await api.get('/breakdowns/master-data');
-        if (res.data?.data) {
-          const { shifts, problemCategories, categories, departments, machines, technicians } = res.data.data;
-          setShifts(shifts);
-          setProblemCategories(problemCategories);
-          setCategories(categories);
-          setDepartments(departments);
-          setAllMachines(machines);
-          setTechnicians(technicians || []);
+        setShifts(STATIC_SHIFTS);
+        setProblemCategories(STATIC_PROBLEM_CATEGORIES);
+        setCategories(STATIC_CATEGORIES);
+        setTechnicians(STATIC_TECHNICIANS);
 
-          // Match the detected shift name to its ID
-          const matchedShift = shifts.find((s: Shift) => s.name.toLowerCase() === initDetails.shiftName.toLowerCase());
-          if (matchedShift) {
-            setShiftId(matchedShift.id);
-          } else if (shifts.length > 0) {
-            setShiftId(shifts[0].id);
-          }
+        // Preselect defaults
+        const matchedShift = STATIC_SHIFTS.find(s => s.name.toLowerCase() === initDetails.shiftName.toLowerCase());
+        if (matchedShift) {
+          setShiftId(matchedShift.id);
+        } else {
+          setShiftId(STATIC_SHIFTS[0].id);
+        }
+        setProblemCategoryId(STATIC_PROBLEM_CATEGORIES[0].id);
+        setCategoryId(STATIC_CATEGORIES[0].id);
 
-          // Preselect first Problem Type
-          if (problemCategories.length > 0) setProblemCategoryId(problemCategories[0].id);
+        const res = await api.get('/machines');
+        if (res.data) {
+          const rawMachines = res.data;
           
-          // Preselect "Breakdown" category by default
-          const bdCat = categories.find((c: any) => c.name === 'Breakdown');
-          if (bdCat) setCategoryId(bdCat.id);
-          else if (categories.length > 0) setCategoryId(categories[0].id);
+          // Construct departments from machineCategory or units
+          const deptMap = new Map<string, Department>();
+          rawMachines.forEach((m: any) => {
+            const deptName = m.machineCategory?.name || 'General';
+            if (!deptMap.has(deptName)) {
+              deptMap.set(deptName, {
+                id: deptName,
+                name: `${deptName.replace("NF", "NF ").replace("FL", "FL ")} Department`,
+                code: deptName
+              });
+            }
+          });
+          setDepartments(Array.from(deptMap.values()));
 
-          // Preselect user's name if they match a technician name
-          if (user?.name && technicians) {
-            const matchedTech = technicians.find((t: string) => t.toLowerCase() === user.name.toLowerCase());
-            if (matchedTech) {
-              setSubmittedBy(matchedTech);
-              setAttendedBy(matchedTech);
-              localStorage.setItem('ppl_lastSubmittedBy', matchedTech);
-            }
-          } else {
-            const savedSubmittedBy = localStorage.getItem('ppl_lastSubmittedBy');
-            if (savedSubmittedBy && technicians.includes(savedSubmittedBy)) {
-              setSubmittedBy(savedSubmittedBy);
-            }
+          // Construct allMachines flat array
+          const flattenedMachines = rawMachines.map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            machineId: m.id,
+            departmentId: m.machineCategory?.name || 'General',
+            subAssemblies: m.subAssemblies || []
+          }));
+          
+          setAllMachines(flattenedMachines);
+        }
+
+        // Preselect user's name if they match a technician name
+        if (user?.name) {
+          const matchedTech = STATIC_TECHNICIANS.find(t => t.toLowerCase() === user.name.toLowerCase());
+          if (matchedTech) {
+            setSubmittedBy(matchedTech);
+            setAttendedBy(matchedTech);
+            localStorage.setItem('ppl_lastSubmittedBy', matchedTech);
+          }
+        } else {
+          const savedSubmittedBy = localStorage.getItem('ppl_lastSubmittedBy');
+          if (savedSubmittedBy && STATIC_TECHNICIANS.includes(savedSubmittedBy)) {
+            setSubmittedBy(savedSubmittedBy);
           }
         }
       } catch (err) {
@@ -282,7 +328,7 @@ export const BreakdownEntry: React.FC = () => {
     !!timeEnd,
     !!departmentId,
     !!machineId,
-    !!unitId,
+    (filteredSubAssemblies.length === 0 || !!unitId),
     !!problemCategoryId,
     !!categoryId,
     !!attendedBy,
@@ -368,7 +414,7 @@ export const BreakdownEntry: React.FC = () => {
     if (!timeEnd) errors.push('End time is required');
     if (!departmentId) errors.push('Machine Type is required');
     if (!machineId) errors.push('Machine Name is required');
-    if (!unitId) errors.push('Unit / Section is required');
+    if (filteredSubAssemblies.length > 0 && !unitId) errors.push('Unit / Section is required');
     if (!problemCategoryId) errors.push('Type of Problem is required');
     if (!categoryId) errors.push('Category is required');
     if (!attendedBy) errors.push('Attended By is required');
@@ -398,29 +444,32 @@ export const BreakdownEntry: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const startTimeISO = new Date(`${date}T${timeStart}:00`).toISOString();
-      const endTimeISO = new Date(`${dateEnd}T${timeEnd}:00`).toISOString();
+      const formattedTimeStart = timeStart.includes(':') && timeStart.split(':').length === 2 ? `${timeStart}:00` : timeStart;
+      const formattedTimeEnd = timeEnd.includes(':') && timeEnd.split(':').length === 2 ? `${timeEnd}:00` : timeEnd;
 
-      const response = await api.post('/breakdowns', {
-        date,
-        shiftId,
-        machineId,
-        unitId,
-        problemCategoryId,
-        categoryId,
-        problemDescription: problemDescription.trim(),
-        actionTakenDescription: actionTakenDescription.trim(),
-        rootCauseDescription: rootCauseDescription.trim() || null,
+      const payload = {
+        date: date,
+        shift: shiftId,
+        machineType: departmentId,
+        machineName: machineId,
+        unit: unitId,
+        problemType: problemCategoryId,
+        category: categoryId,
+        description: problemDescription.trim(),
+        actionTaken: actionTakenDescription.trim(),
+        rootCause: rootCauseDescription.trim() || null,
+        timeStart: formattedTimeStart,
+        timeEnd: formattedTimeEnd,
+        durationMin: String(durationInfo.minutes),
         attendedBy,
         submittedBy,
-        startTime: startTimeISO,
-        endTime: endTimeISO,
-        durationMin: durationInfo.minutes,
         remarks: remarks.trim() || null
-      });
+      };
+
+      const response = await api.post('/breakdowns/create', payload);
 
       if (response.data?.data) {
-        setSuccessRef(response.data.data.breakdownNumber || '-');
+        setSuccessRef(response.data.data.refId || '-');
       }
 
       // Save submission preference locally
