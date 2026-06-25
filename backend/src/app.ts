@@ -1,5 +1,4 @@
 import express, { Request, Response, NextFunction } from 'express';
-import cors from 'cors';
 import routes from './routes';
 import { httpRequestCounter, httpRequestDurationHistogram } from './metrics/prometheus';
 
@@ -8,7 +7,9 @@ const app = express();
 // ==========================================
 // 1. GLOBAL MIDDLEWARE
 // ==========================================
-app.use(cors());
+// NOTE: CORS is configured in server.ts with explicit origin allowlist.
+// Do NOT add app.use(cors()) here — it would override the configured policy
+// with an open wildcard, defeating the security configuration.
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

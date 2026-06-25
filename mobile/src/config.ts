@@ -6,7 +6,7 @@ export const getApiUrl = (customIp?: string) => {
   if (ip.startsWith('http')) {
     return `${ip}/api`;
   }
-  return `http://${ip}:3001/api`;
+  return `http://${ip}:5000/api`; // Backend standardized to port 5000
 };
 
 export const getSocketUrl = (customIp?: string) => {
@@ -15,5 +15,5 @@ export const getSocketUrl = (customIp?: string) => {
     const cleanUrl = ip.replace('/api', '');
     return cleanUrl;
   }
-  return `http://${ip}:3001`;
+  return `http://${ip}:5000`; // Backend standardized to port 5000
 };

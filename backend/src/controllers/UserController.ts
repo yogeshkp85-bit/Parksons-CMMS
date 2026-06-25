@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { UserService } from '../services/UserService';
+import prisma from '../utils/db';
 
 const userService = new UserService();
 
@@ -77,22 +78,46 @@ export class UserController {
   }
 
   async getRegisterMetadata(req: Request, res: Response) {
-    res.json({
-      success: true,
-      data: {
-        roles: [
-          { id: 'superadmin', name: 'Super Admin', code: 'superadmin' },
-          { id: 'admin', name: 'Admin', code: 'admin' },
-          { id: 'manager', name: 'Manager', code: 'manager' },
-          { id: 'supervisor', name: 'Supervisor', code: 'supervisor' },
-          { id: 'technician', name: 'Technician', code: 'technician' },
-          { id: 'viewer', name: 'Viewer', code: 'viewer' }
-        ],
-        plants: [
-          { id: 'daman-plant', name: 'Daman Plant', code: 'DAMAN' }
-        ]
-      }
-    });
+    try {
+      // Try to fetch roles from the database for accuracy
+      const dbRoles = await prisma.role.findMany({
+        select: { id: true, name: true, code: true }
+      });
+      const roles = dbRoles.length > 0 ? dbRoles : [
+        { id: 'superadmin', name: 'Super Admin', code: 'superadmin' },
+        { id: 'admin', name: 'Admin', code: 'admin' },
+        { id: 'manager', name: 'Manager', code: 'manager' },
+        { id: 'supervisor', name: 'Supervisor', code: 'supervisor' },
+        { id: 'technician', name: 'Technician', code: 'technician' },
+        { id: 'viewer', name: 'Viewer', code: 'viewer' }
+      ];
+
+      // Fetch plants from DB if available
+      const dbPlants = await prisma.plant.findMany({
+        select: { id: true, name: true, code: true }
+      }).catch(() => [] as { id: string; name: string; code: string }[]);
+      const plants = dbPlants.length > 0 ? dbPlants : [
+        { id: 'daman-plant', name: 'Daman Plant', code: 'DAMAN' }
+      ];
+
+      res.json({ success: true, data: { roles, plants } });
+    } catch (error: any) {
+      // Fallback to static data so registration form never shows a blank page
+      res.json({
+        success: true,
+        data: {
+          roles: [
+            { id: 'superadmin', name: 'Super Admin', code: 'superadmin' },
+            { id: 'admin', name: 'Admin', code: 'admin' },
+            { id: 'manager', name: 'Manager', code: 'manager' },
+            { id: 'supervisor', name: 'Supervisor', code: 'supervisor' },
+            { id: 'technician', name: 'Technician', code: 'technician' },
+            { id: 'viewer', name: 'Viewer', code: 'viewer' }
+          ],
+          plants: [{ id: 'daman-plant', name: 'Daman Plant', code: 'DAMAN' }]
+        }
+      });
+    }
   }
 }
 
