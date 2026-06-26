@@ -582,6 +582,20 @@ export const getBreakdownMasterData = async (req: AuthenticatedRequest, res: Res
       select: { id: true, name: true }
     });
 
+    // Fetch technicians dynamically from User table (technician + supervisor roles)
+    // Falls back to empty array if no users are seeded yet
+    const technicianUsers = await prisma.user.findMany({
+      where: {
+        role: {
+          code: { in: ['technician', 'supervisor', 'admin', 'superadmin'] }
+        },
+        isActive: true
+      },
+      select: { name: true },
+      orderBy: { name: 'asc' }
+    }).catch(() => [] as { name: string }[]);
+    const technicians = technicianUsers.map((u: { name: string }) => u.name);
+
     return res.status(200).json({
       status: 'success',
       data: {
@@ -598,12 +612,7 @@ export const getBreakdownMasterData = async (req: AuthenticatedRequest, res: Res
         })),
         actionTakenCategories,
         rootCauseCategories,
-        technicians: [
-          "Ashish","Shivaji","Sandip","Sharad","Vikas","Ravi",
-          "Sachine","Krishna","Dattaram","Akshay","PM team",
-          "Baba","Sangram","Ramdas","Chandan","YogeshK",
-          "GaneshS","KedarP","YogeshP","Supervisor"
-        ]
+        technicians
       }
     });
   } catch (error: any) {

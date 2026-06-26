@@ -1,6 +1,15 @@
+/**
+ * @deprecated LEGACY CONTROLLER — scheduled for removal in Phase 7.
+ * The new implementation is in breakdown.controller.ts (kebab-case).
+ * breakdown.controller.ts has richer logic: SubAssembly resolution,
+ * Socket.IO notifications, Zod validation, and dynamic technician list.
+ * Migration task: update routes/index.ts to import from breakdown.controller.ts
+ * and delete this file.
+ */
 import { Request, Response } from 'express';
 import { BreakdownService } from '../services/BreakdownService';
 import { notifyBreakdownCreated, NotificationType } from '../services/socket.service';
+
 import logger from '../utils/logger';
 
 const breakdownService = new BreakdownService();

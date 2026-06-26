@@ -50,22 +50,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (normalized === 'superadmin') {
       role = { name: 'Super Admin', code: 'superadmin' };
-      permissions = ['Dashboard', 'Create', 'Edit', 'Delete', 'Approve', 'Reports', 'Masters', 'Users'];
+      permissions = ['Dashboard', 'Create', 'Edit', 'Delete', 'Approve', 'Reports', 'Masters', 'Users', 'PreventiveMaintenance'];
     } else if (normalized === 'admin') {
       role = { name: 'Admin', code: 'admin' };
-      permissions = ['Dashboard', 'Create', 'Edit', 'Delete', 'Approve', 'Reports', 'Masters', 'Users'];
+      permissions = ['Dashboard', 'Create', 'Edit', 'Delete', 'Approve', 'Reports', 'Masters', 'Users', 'PreventiveMaintenance'];
     } else if (normalized === 'manager') {
       role = { name: 'Manager', code: 'manager' };
-      permissions = ['Dashboard', 'Approve', 'Reports'];
+      permissions = ['Dashboard', 'Approve', 'Reports', 'PreventiveMaintenance'];
     } else if (normalized === 'supervisor') {
       role = { name: 'Supervisor', code: 'supervisor' };
-      permissions = ['Dashboard', 'Create', 'Edit', 'Approve', 'Reports'];
+      permissions = ['Dashboard', 'Create', 'Edit', 'Approve', 'Reports', 'PreventiveMaintenance'];
     } else if (normalized === 'technician') {
       role = { name: 'Technician', code: 'technician' };
-      permissions = ['Dashboard', 'Create'];
+      permissions = ['Dashboard', 'Create', 'PreventiveMaintenance'];
     } else {
       role = { name: 'Viewer', code: 'viewer' };
-      permissions = ['Dashboard'];
+      permissions = ['Dashboard', 'PreventiveMaintenance'];
     }
 
     return { role, permissions };
@@ -73,25 +73,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleLogoutCleanup = () => {
     localStorage.removeItem('cmms_user');
-    localStorage.removeItem('cmms_token');
+    localStorage.removeItem('cmms_token'); // Legacy key - remove if present
     setAccessToken(null);
     setAccessTokenState(null);
     setUser(null);
     setPermissions([]);
   };
 
-  // Perform token/session restoration from localStorage on mount
+  // Restore user profile from localStorage on mount.
+  // Access token is NOT stored in localStorage (XSS protection).
+  // On page refresh, user profile is restored for UI, but API calls
+  // will fail until token is refreshed via /auth/refresh endpoint.
   const checkSession = async () => {
     try {
       const storedUser = localStorage.getItem('cmms_user');
-      const storedToken = localStorage.getItem('cmms_token');
-      if (storedUser && storedToken) {
+      if (storedUser) {
         const parsedUser = JSON.parse(storedUser);
         const mapped = mapLevelToRoleAndPermissions(parsedUser.role?.code || 'viewer');
-        setAccessToken(storedToken);
-        setAccessTokenState(storedToken);
         setUser(parsedUser);
         setPermissions(mapped.permissions);
+        // Attempt to refresh access token via httpOnly cookie
+        try {
+          const refreshRes = await api.post('/auth/refresh');
+          if (refreshRes.data?.data?.token) {
+            setAccessToken(refreshRes.data.data.token);
+            setAccessTokenState(refreshRes.data.data.token);
+          }
+        } catch {
+          // Refresh failed (cookie expired or not present) - user stays logged out
+          handleLogoutCleanup();
+        }
       } else {
         handleLogoutCleanup();
       }
@@ -119,9 +130,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           plantId: 'daman-plant'
         };
 
-        // Cache in localStorage
+        // Store only non-sensitive user profile in localStorage (no token).
+        // The access token is kept in memory only (via setAccessToken) to
+        // prevent XSS token theft. Session is restored from the httpOnly
+        // refresh cookie on next page load via checkSession → /auth/refresh.
         localStorage.setItem('cmms_user', JSON.stringify(fullUser));
-        localStorage.setItem('cmms_token', token);
+        // SECURITY: Do NOT store token in localStorage. Token stays in memory.
 
         setAccessToken(token);
         setAccessTokenState(token);
