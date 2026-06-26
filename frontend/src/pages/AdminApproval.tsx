@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { 
   ShieldCheck, 
   Wrench, 
@@ -8,7 +9,12 @@ import {
   Edit2,
   ThumbsUp,
   ThumbsDown,
-  X
+  X,
+  CheckSquare,
+  Square,
+  Users,
+  Check,
+  Save
 } from 'lucide-react';
 
 interface LogItem {
@@ -69,6 +75,30 @@ export const AdminApproval: React.FC = () => {
   const [rootCauseDesc, setRootCauseDesc] = useState('');
   const [logRemarks, setLogRemarks] = useState('');
 
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+
+  // Additional team modal (for editing)
+  const [showTeamModal, setShowTeamModal] = useState(false);
+  const [editAdditionalTeam, setEditAdditionalTeam] = useState<string[]>([]);
+  const [editAttendedBy, setEditAttendedBy] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editShift, setEditShift] = useState('');
+  const [editProblemReported, setEditProblemReported] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editSpareConsumed, setEditSpareConsumed] = useState('');
+
+  const TECHNICIANS = [
+    'Ashish', 'Shivaji', 'Bipin', 'Ketan', 'Sanjay', 'Dinesh',
+    'Vijay', 'Amit', 'Rajesh', 'Nilesh', 'YogeshK'
+  ];
+  const SHIFTS = ['First Shift', 'Second Shift', 'Third Shift'];
+
+  // Auth for permission check
+  const { permissions } = useAuth();
+  const canApprove = permissions.includes('Approve');
+
   // UX states
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -125,6 +155,18 @@ export const AdminApproval: React.FC = () => {
     setRootCauseCatId('');
     setRootCauseDesc(log.rootCause || '');
     setLogRemarks(log.remarks || '');
+    // Populate new editable fields
+    setEditAttendedBy((log as any).attendedBy || '');
+    setEditDate(log.date || '');
+    setEditShift(log.shift?.name || '');
+    setEditProblemReported((log as any).problemReported || '');
+    setEditDescription(log.problemDescription || '');
+    setEditSpareConsumed((log as any).spareConsumed || '');
+    setEditAdditionalTeam(
+      (log as any).additionalTeam
+        ? String((log as any).additionalTeam).split(',').map((s: string) => s.trim()).filter(Boolean)
+        : []
+    );
     setError(null);
   };
 
@@ -133,9 +175,16 @@ export const AdminApproval: React.FC = () => {
     setIsProcessing(true);
     setError(null);
     try {
-      // 1. Save edits first via PUT /breakdowns/update
+      // 1. Save all edits via PUT /breakdowns/update (full field edit)
       await api.put('/breakdowns/update', {
         refId: selectedLog.id,
+        date: editDate || undefined,
+        shift: editShift || undefined,
+        attendedBy: editAttendedBy || undefined,
+        additionalTeam: editAdditionalTeam.join(', ') || undefined,
+        problemReported: editProblemReported || undefined,
+        description: editDescription || undefined,
+        spareConsumed: editSpareConsumed || undefined,
         actionTaken: actionDesc || undefined,
         rootCause: rootCauseDesc || undefined,
         remarks: logRemarks || undefined
@@ -177,6 +226,39 @@ export const AdminApproval: React.FC = () => {
     }
   };
 
+  const handleBulkApprove = async () => {
+    if (selectedIds.size === 0) return;
+    setIsBulkProcessing(true);
+    setError(null);
+    let approved = 0;
+    let failed = 0;
+    for (const refId of Array.from(selectedIds)) {
+      try {
+        await api.post('/approvals/approve', { refId });
+        approved++;
+      } catch {
+        failed++;
+      }
+    }
+    setSelectedIds(new Set());
+    fetchData();
+    setSuccessMsg(
+      failed > 0
+        ? `Bulk: ${approved} approved, ${failed} failed.`
+        : `${approved} entries approved successfully.`
+    );
+    setTimeout(() => setSuccessMsg(null), 4000);
+    setIsBulkProcessing(false);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === pendingLogs.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(pendingLogs.map(l => l.id)));
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       
@@ -189,8 +271,24 @@ export const AdminApproval: React.FC = () => {
           </h2>
           <p className="text-xs text-gray-400 mt-1">Review active breakdowns, append details, and approve OEE logs.</p>
         </div>
-        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 px-3 py-1.5 rounded-lg text-xs font-semibold font-mono">
-          Pending Verification: {pendingLogs.length} entries
+          <div className="flex items-center gap-3">
+          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 px-3 py-1.5 rounded-lg text-xs font-semibold font-mono">
+            Pending: {pendingLogs.length} entries
+          </div>
+          {selectedIds.size > 0 && canApprove && (
+            <button
+              onClick={handleBulkApprove}
+              disabled={isBulkProcessing}
+              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold rounded-lg hover:bg-emerald-500/20 cursor-pointer disabled:opacity-50 transition-colors"
+            >
+              {isBulkProcessing ? (
+                <div className="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <ShieldCheck size={13} />
+              )}
+              Bulk Approve ({selectedIds.size})
+            </button>
+          )}
         </div>
       </div>
 
@@ -234,25 +332,47 @@ export const AdminApproval: React.FC = () => {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-white/5 bg-[#0f172a]/20 text-gray-400 font-semibold text-[10px] uppercase tracking-wider">
+                    <th className="py-3 px-3 w-8">
+                      <button onClick={toggleSelectAll} className="cursor-pointer text-gray-400 hover:text-gray-200">
+                        {selectedIds.size === pendingLogs.length && pendingLogs.length > 0
+                          ? <CheckSquare size={13} className="text-emerald-400" />
+                          : <Square size={13} />}
+                      </button>
+                    </th>
                     <th className="py-3 px-4">Ref ID</th>
                     <th className="py-3 px-3">Date</th>
                     <th className="py-3 px-3">Equipment</th>
                     <th className="py-3 px-3">Category</th>
                     <th className="py-3 px-3">Duration</th>
                     <th className="py-3 px-3">Attended By</th>
-                    <th className="py-3 px-4 text-right">Action</th>
+                    <th className="py-3 px-4 text-right">Review</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {pendingLogs.map((log) => (
                     <tr 
                       key={log.id} 
-                      className={`hover:bg-white/2 cursor-pointer transition-colors ${
+                      className={`hover:bg-white/2 transition-colors ${
                         selectedLog?.id === log.id ? 'bg-emerald-500/5' : ''
                       }`}
-                      onClick={() => handleSelectLog(log)}
                     >
-                      <td className="py-3 px-4 font-mono font-semibold text-gray-300">{log.breakdownNumber}</td>
+                      <td className="py-3 px-3" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => {
+                            setSelectedIds(prev => {
+                              const next = new Set(prev);
+                              next.has(log.id) ? next.delete(log.id) : next.add(log.id);
+                              return next;
+                            });
+                          }}
+                          className="cursor-pointer text-gray-400 hover:text-emerald-400"
+                        >
+                          {selectedIds.has(log.id)
+                            ? <CheckSquare size={13} className="text-emerald-400" />
+                            : <Square size={13} />}
+                        </button>
+                      </td>
+                      <td className="py-3 px-4 font-mono font-semibold text-gray-300 cursor-pointer" onClick={() => handleSelectLog(log)}>{log.breakdownNumber}</td>
                       <td className="py-3 px-3 text-gray-400">{new Date(log.date).toLocaleDateString('en-GB')}</td>
                       <td className="py-3 px-3">
                         <span className="font-semibold text-gray-200">{log.machine.name}</span>
@@ -313,6 +433,67 @@ export const AdminApproval: React.FC = () => {
                     <p className="text-xs text-gray-300 font-sans mt-0.5 line-clamp-2">{selectedLog.problemDescription}</p>
                   </div>
                 </div>
+
+                {/* Full field editing for authorised approvers */}
+                {canApprove && (
+                  <div className="space-y-3 mt-4 p-3 bg-slate-900/40 rounded-xl border border-white/5">
+                    <p className="text-[9px] text-gray-500 uppercase tracking-wider font-mono font-semibold">Edit Entry Fields</p>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[9px] text-gray-400 uppercase tracking-wider mb-1">Date</label>
+                        <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+                          className="glass-input px-2 py-1.5 w-full rounded text-xs text-gray-200" />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] text-gray-400 uppercase tracking-wider mb-1">Shift</label>
+                        <select value={editShift} onChange={e => setEditShift(e.target.value)}
+                          className="glass-input px-2 py-1.5 w-full rounded text-xs text-gray-200 bg-transparent cursor-pointer">
+                          <option value="">Select</option>
+                          {SHIFTS.map(s => <option key={s} value={s} className="bg-slate-950">{s}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] text-gray-400 uppercase tracking-wider mb-1">Attended By (Primary)</label>
+                      <select value={editAttendedBy} onChange={e => setEditAttendedBy(e.target.value)}
+                        className="glass-input px-2 py-1.5 w-full rounded text-xs text-gray-200 bg-transparent cursor-pointer">
+                        <option value="">Select</option>
+                        {TECHNICIANS.map(t => <option key={t} value={t} className="bg-slate-950">{t}</option>)}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] text-gray-400 uppercase tracking-wider mb-1">Additional Team Members</label>
+                      <button type="button" onClick={() => setShowTeamModal(true)}
+                        className="w-full glass-input px-2 py-1.5 rounded text-xs text-left flex items-center justify-between cursor-pointer hover:border-emerald-500/30">
+                        <span className={editAdditionalTeam.length > 0 ? 'text-gray-200' : 'text-gray-500'}>
+                          {editAdditionalTeam.length > 0 ? editAdditionalTeam.join(', ') : 'Select co-workers...'}
+                        </span>
+                        <Users size={11} className="text-gray-500" />
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] text-gray-400 uppercase tracking-wider mb-1">Problem Reported</label>
+                      <textarea rows={2} value={editProblemReported} onChange={e => setEditProblemReported(e.target.value)}
+                        className="glass-input px-2 py-1.5 w-full rounded text-xs text-gray-200" placeholder="Problem reported..." />
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] text-gray-400 uppercase tracking-wider mb-1">Problem Description</label>
+                      <textarea rows={2} value={editDescription} onChange={e => setEditDescription(e.target.value)}
+                        className="glass-input px-2 py-1.5 w-full rounded text-xs text-gray-200" placeholder="Description..." />
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] text-gray-400 uppercase tracking-wider mb-1">Spare Parts Consumed</label>
+                      <input type="text" value={editSpareConsumed} onChange={e => setEditSpareConsumed(e.target.value)}
+                        className="glass-input px-2 py-1.5 w-full rounded text-xs text-gray-200" placeholder="e.g. Bearing 6205 x2" />
+                    </div>
+                  </div>
+                )}
 
                 {/* Approvals inputs */}
                 <div className="space-y-4 mt-4">
@@ -421,6 +602,48 @@ export const AdminApproval: React.FC = () => {
         </div>
 
       </div>
+
+      {/* TEAM SELECTION MODAL (for edit in approval) */}
+      {showTeamModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="glass-panel rounded-2xl w-full max-w-sm p-5 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-gray-100 flex items-center gap-2">
+                <Users size={16} className="text-emerald-400" />
+                Select Team Members
+              </h3>
+              <button type="button" onClick={() => setShowTeamModal(false)} className="text-gray-400 hover:text-gray-200 cursor-pointer">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="space-y-1 max-h-64 overflow-y-auto">
+              {TECHNICIANS.filter(t => t !== editAttendedBy).map((tech) => {
+                const isSelected = editAdditionalTeam.includes(tech);
+                return (
+                  <button key={tech} type="button"
+                    onClick={() => setEditAdditionalTeam(prev => isSelected ? prev.filter(n => n !== tech) : [...prev, tech])}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs cursor-pointer transition-colors text-left ${
+                      isSelected ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300' : 'hover:bg-white/5 border border-transparent text-gray-300'
+                    }`}>
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-gray-600'}`}>
+                      {isSelected && <Check size={10} className="text-white" />}
+                    </div>
+                    {tech}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex gap-3 mt-4 pt-4 border-t border-white/5">
+              <button type="button" onClick={() => setEditAdditionalTeam([])}
+                className="flex-1 py-2 text-xs text-gray-400 hover:text-gray-200 border border-white/5 rounded-lg cursor-pointer">Clear All</button>
+              <button type="button" onClick={() => setShowTeamModal(false)}
+                className="flex-1 py-2 text-xs font-semibold text-white glow-btn-primary rounded-lg cursor-pointer">
+                Confirm ({editAdditionalTeam.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

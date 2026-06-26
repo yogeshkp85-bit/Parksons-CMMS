@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import {
+  enqueueOffline,
+  flushOfflineQueue,
+  getOfflineQueueCount,
+  registerOnlineListener
+} from '../services/offlineQueue';
 import { 
   Calendar, 
   Clock, 
@@ -11,111 +17,56 @@ import {
   CheckCircle,
   Briefcase,
   User,
+  Users,
   ExternalLink,
   ChevronRight,
-  RefreshCw
+  RefreshCw,
+  WifiOff,
+  X,
+  Check
 } from 'lucide-react';
+import {
+  MACHINES,
+  DEPARTMENTS,
+  getMachineNames,
+  getUnits,
+  TECHNICIANS as MASTER_TECHNICIANS,
+  SHIFTS as MASTER_SHIFTS,
+  PROBLEM_TYPES,
+  CATEGORIES as MASTER_CATEGORIES,
+  detectCurrentShift,
+  isTimeValidForShift,
+  type ShiftConfig,
+} from '../config/masterConfig';
 
-interface Shift {
-  id: string;
-  name: string;
-  code: string;
-}
-
-interface ProblemCategory {
-  id: string;
-  name: string;
-}
-
-interface Category {
-  id: string;
-  name: string;
-}
-
-interface Department {
-  id: string;
-  name: string;
-  code: string;
-}
-
-interface SubAssembly {
-  id: string;
-  name: string;
-}
-
-interface Machine {
-  id: string;
-  name: string;
-  machineId: string;
-  departmentId: string;
-  subAssemblies: SubAssembly[];
-}
+// Machine/department/shift types come from masterConfig.ts
 
 export const BreakdownEntry: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // Helper date/time functions
-  const getDetectedDateAndShift = () => {
-    const now = new Date();
-    const h = now.getHours();
-    let detectedShiftName = 'Third Shift';
-    let shiftHoursText = '11 PM - 7 AM';
-    let shiftDateObj = new Date(now);
-
-    // If time is between 12:00 AM (midnight) and 6:59 AM, roll shift date to yesterday
-    if (h < 7) {
-      detectedShiftName = 'Third Shift';
-      shiftHoursText = '11 PM - 7 AM';
-      shiftDateObj.setDate(shiftDateObj.getDate() - 1);
-    } else if (h >= 7 && h < 15) {
-      detectedShiftName = 'First Shift';
-      shiftHoursText = '7 AM - 3 PM';
-    } else if (h >= 15 && h < 23) {
-      detectedShiftName = 'Second Shift';
-      shiftHoursText = '3 PM - 11 PM';
-    }
-
-    const y = shiftDateObj.getFullYear();
-    const m = String(shiftDateObj.getMonth() + 1).padStart(2, '0');
-    const d = String(shiftDateObj.getDate()).padStart(2, '0');
-    const dateStr = `${y}-${m}-${d}`;
-
-    return {
-      dateStr,
-      shiftName: detectedShiftName,
-      hoursText: shiftHoursText
-    };
-  };
-
+  // Helper: current time string HH:MM
   const getCurrentTimeString = () => {
     const now = new Date();
-    const h = String(now.getHours()).padStart(2, '0');
-    const m = String(now.getMinutes()).padStart(2, '0');
-    return `${h}:${m}`;
+    return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   };
 
-  const initDetails = getDetectedDateAndShift();
+  // Use masterConfig shift detection (mirrors Form.html logic exactly)
+  const initDetails = detectCurrentShift();
 
-  // Master lists
-  const [shifts, setShifts] = useState<Shift[]>([]);
-  const [problemCategories, setProblemCategories] = useState<ProblemCategory[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [allMachines, setAllMachines] = useState<Machine[]>([]);
-  const [technicians, setTechnicians] = useState<string[]>([]);
-  
-  // Cascading states
-  const [filteredMachines, setFilteredMachines] = useState<Machine[]>([]);
-  const [filteredSubAssemblies, setFilteredSubAssemblies] = useState<SubAssembly[]>([]);
-  
+  // Master lists now come from masterConfig — no state needed, they are constants
+  // Cascading state: machine names and units derive from selected department/machine
+  const [machineNames, setMachineNames] = useState<string[]>([]);
+  const [unitList, setUnitList] = useState<string[]>([]);
+
   // Form input states
-  const [date, setDate] = useState(initDetails.dateStr);
-  const [shiftId, setShiftId] = useState('');
+  const [date, setDate] = useState(initDetails.shiftDateStr);
+  const [shiftId, setShiftId] = useState(initDetails.shiftId);
   const [timeStart, setTimeStart] = useState(getCurrentTimeString);
+  const [shiftTimeError, setShiftTimeError] = useState<string | null>(null);
   
   // Support for 24hr/48hr+ multi-day breakdowns
-  const [dateEnd, setDateEnd] = useState(initDetails.dateStr);
+  const [dateEnd, setDateEnd] = useState(initDetails.shiftDateStr);
   const [timeEnd, setTimeEnd] = useState('');
   
   const [departmentId, setDepartmentId] = useState('');
@@ -129,163 +80,129 @@ export const BreakdownEntry: React.FC = () => {
   const [rootCauseDescription, setRootCauseDescription] = useState('');
   
   const [attendedBy, setAttendedBy] = useState('');
+  const [additionalTeam, setAdditionalTeam] = useState<string[]>([]); // Multiple co-workers
+  const [showTeamModal, setShowTeamModal] = useState(false);
   const [submittedBy, setSubmittedBy] = useState('');
+  const [spareConsumed, setSpareConsumed] = useState(''); // Free text; will link to spare module later
+  const [problemReported, setProblemReported] = useState(''); // Step 5: Problem Reported field
   const [remarks, setRemarks] = useState('');
+
+  // Offline queue state
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [offlineCount, setOfflineCount] = useState(getOfflineQueueCount);
 
   // Auto detect shift text banner
   const shiftBannerText = (() => {
-    const parts = initDetails.dateStr.split('-');
+    const parts = initDetails.shiftDateStr.split('-');
     const formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
-    return `Auto-detected: ${initDetails.shiftName} (${initDetails.hoursText}) based on current time (Shift Date: ${formattedDate})`;
+    const shiftDef = MASTER_SHIFTS.find(s => s.id === initDetails.shiftId);
+    return `Auto-detected: ${shiftDef?.name || 'Third Shift'} based on current time — Shift Date: ${formattedDate}`;
   })();
 
-  // Static Dropdowns
-  const STATIC_SHIFTS: Shift[] = [
-    { id: 'SHIFT_1', name: 'First Shift', code: 'SHIFT_1' },
-    { id: 'SHIFT_2', name: 'Second Shift', code: 'SHIFT_2' },
-    { id: 'SHIFT_3', name: 'Third Shift', code: 'SHIFT_3' }
-  ];
+  // Master data now comes from masterConfig.ts — no local static lists needed
 
-  const STATIC_PROBLEM_CATEGORIES: ProblemCategory[] = [
-    { id: 'Electrical', name: 'Electrical' },
-    { id: 'Mechanical', name: 'Mechanical' },
-    { id: 'Pneumatic', name: 'Pneumatic' },
-    { id: 'Hydraulic', name: 'Hydraulic' },
-    { id: 'Utility', name: 'Utility' },
-    { id: 'Process', name: 'Process' },
-    { id: 'Others', name: 'Others' }
-  ];
-
-  const STATIC_CATEGORIES: Category[] = [
-    { id: 'Breakdown', name: 'Breakdown' },
-    { id: 'Planned Maintenance (PM)', name: 'Planned Maintenance (PM)' },
-    { id: 'Tooling Change', name: 'Tooling Change' },
-    { id: 'Utility Downtime', name: 'Utility Downtime' },
-    { id: 'Others', name: 'Others' }
-  ];
-
-  const STATIC_TECHNICIANS = [
-    "Ashish", "Shivaji", "Bipin", "Ketan", "Sanjay", "Dinesh", "Vijay", "Amit", "Rajesh", "Nilesh", "YogeshK"
-  ];
-
-  // Load masters on mount
+  // On mount: preselect defaults from masterConfig (no API call needed for master data)
   useEffect(() => {
-    const fetchMasterData = async () => {
-      try {
-        setShifts(STATIC_SHIFTS);
-        setProblemCategories(STATIC_PROBLEM_CATEGORIES);
-        setCategories(STATIC_CATEGORIES);
-        setTechnicians(STATIC_TECHNICIANS);
+    // Default problem type and category
+    setProblemCategoryId(PROBLEM_TYPES[0]);
+    setCategoryId(MASTER_CATEGORIES[0]);
 
-        // Preselect defaults
-        const matchedShift = STATIC_SHIFTS.find(s => s.name.toLowerCase() === initDetails.shiftName.toLowerCase());
-        if (matchedShift) {
-          setShiftId(matchedShift.id);
-        } else {
-          setShiftId(STATIC_SHIFTS[0].id);
-        }
-        setProblemCategoryId(STATIC_PROBLEM_CATEGORIES[0].id);
-        setCategoryId(STATIC_CATEGORIES[0].id);
-
-        const res = await api.get('/machines');
-        if (res.data) {
-          const rawMachines = res.data;
-          
-          // Construct departments from machineCategory or units
-          const deptMap = new Map<string, Department>();
-          rawMachines.forEach((m: any) => {
-            const deptName = m.machineCategory?.name || 'General';
-            if (!deptMap.has(deptName)) {
-              deptMap.set(deptName, {
-                id: deptName,
-                name: `${deptName.replace("NF", "NF ").replace("FL", "FL ")} Department`,
-                code: deptName
-              });
-            }
-          });
-          setDepartments(Array.from(deptMap.values()));
-
-          // Construct allMachines flat array
-          const flattenedMachines = rawMachines.map((m: any) => ({
-            id: m.id,
-            name: m.name,
-            machineId: m.id,
-            departmentId: m.machineCategory?.name || 'General',
-            subAssemblies: m.subAssemblies || []
-          }));
-          
-          setAllMachines(flattenedMachines);
-        }
-
-        // Preselect user's name if they match a technician name
-        if (user?.name) {
-          const matchedTech = STATIC_TECHNICIANS.find(t => t.toLowerCase() === user.name.toLowerCase());
-          if (matchedTech) {
-            setSubmittedBy(matchedTech);
-            setAttendedBy(matchedTech);
-            localStorage.setItem('ppl_lastSubmittedBy', matchedTech);
-          }
-        } else {
-          const savedSubmittedBy = localStorage.getItem('ppl_lastSubmittedBy');
-          if (savedSubmittedBy && STATIC_TECHNICIANS.includes(savedSubmittedBy)) {
-            setSubmittedBy(savedSubmittedBy);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load breakdown master options', err);
-        setError('Connection failure: Unable to fetch form master parameters.');
-      } finally {
-        setIsLoadingMetadata(false);
+    // Preselect logged-in user's name if it matches a technician
+    if (user?.name) {
+      const matchedTech = MASTER_TECHNICIANS.find(t => t.toLowerCase() === user.name.toLowerCase());
+      if (matchedTech) {
+        setSubmittedBy(matchedTech);
+        setAttendedBy(matchedTech);
+        localStorage.setItem('ppl_lastSubmittedBy', matchedTech);
       }
-    };
+    } else {
+      const saved = localStorage.getItem('ppl_lastSubmittedBy');
+      if (saved && MASTER_TECHNICIANS.includes(saved)) setSubmittedBy(saved);
+    }
 
-    fetchMasterData();
+    setIsLoadingMetadata(false);
   }, [user]);
+
+  // Offline queue: monitor connectivity and flush queue when back online
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      flushOfflineQueue().then(({ sent }) => {
+        if (sent > 0) setOfflineCount(0);
+      });
+    };
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // UX helper: Auto-advance Date End when Date Start changes
   const handleStartDateChange = (val: string) => {
     setDate(val);
-    // If dateEnd was the same as the old date, advance it to match the new start date
     setDateEnd(val);
   };
 
-  // Cascading Logic: Department (Machine Type) -> Machine Name
-  useEffect(() => {
-    if (departmentId) {
-      const matched = allMachines.filter(m => m.departmentId === departmentId);
-      setFilteredMachines(matched);
-      setMachineId('');
-      setUnitId('');
-      setFilteredSubAssemblies([]);
-    } else {
-      setFilteredMachines([]);
-      setMachineId('');
-      setUnitId('');
-      setFilteredSubAssemblies([]);
-    }
-  }, [departmentId, allMachines]);
-
-  // Cascading Logic: Machine Name -> Unit / Section
-  useEffect(() => {
-    if (machineId) {
-      const selectedMachine = filteredMachines.find(m => m.id === machineId);
-      if (selectedMachine) {
-        const subUnits = selectedMachine.subAssemblies || [];
-        setFilteredSubAssemblies(subUnits);
-        if (subUnits.length === 1) {
-          setUnitId(subUnits[0].id);
-        } else {
-          setUnitId('');
-        }
+  // Bug 2 fix: Validate start time against selected shift (S1: 07–14:59, S2: 15–22:59, S3: 23:xx or 00-06:59)
+  const handleTimeStartChange = (val: string) => {
+    setTimeStart(val);
+    if (shiftId && val && !isTimeValidForShift(shiftId, val)) {
+      const shiftDef = MASTER_SHIFTS.find(s => s.id === shiftId);
+      if (shiftId === 'SHIFT_3') {
+        setShiftTimeError('Third Shift start time must be 23:00–23:59 or 00:00–06:59');
       } else {
-        setFilteredSubAssemblies([]);
-        setUnitId('');
+        setShiftTimeError(`Start time for ${shiftDef?.name} must be ${shiftDef?.startTimeMin} – ${shiftDef?.startTimeMax}`);
       }
     } else {
-      setFilteredSubAssemblies([]);
+      setShiftTimeError(null);
+    }
+  };
+
+  // Clear shift time error when shift changes
+  const handleShiftChange = (val: string) => {
+    setShiftId(val);
+    setShiftTimeError(null);
+    // Re-validate current timeStart against new shift
+    if (timeStart && val && !isTimeValidForShift(val, timeStart)) {
+      const shiftDef = MASTER_SHIFTS.find(s => s.id === val);
+      setShiftTimeError(val === 'SHIFT_3'
+        ? 'Third Shift start time must be 23:00–23:59 or 00:00–06:59'
+        : `Start time for ${shiftDef?.name} must be ${shiftDef?.startTimeMin} – ${shiftDef?.startTimeMax}`
+      );
+    }
+  };
+
+  // Cascading: Department → Machine Names (from masterConfig, instant, no API)
+  useEffect(() => {
+    if (departmentId) {
+      setMachineNames(getMachineNames(departmentId));
+    } else {
+      setMachineNames([]);
+    }
+    setMachineId('');
+    setUnitId('');
+    setUnitList([]);
+  }, [departmentId]);
+
+  // Cascading: Machine Name → Units (from masterConfig, instant, no API)
+  useEffect(() => {
+    if (departmentId && machineId) {
+      const units = getUnits(departmentId, machineId);
+      // Always clear first (fixes Bug 5 — repeated unit lists)
+      setUnitList([]);
+      setUnitId('');
+      // Then set fresh list
+      setUnitList(units);
+      if (units.length === 1) setUnitId(units[0]);
+    } else {
+      setUnitList([]);
       setUnitId('');
     }
-  }, [machineId, filteredMachines]);
+  }, [machineId, departmentId]);
 
   // Duration calculation
   const getCalculatedDurationInfo = () => {
@@ -318,8 +235,8 @@ export const BreakdownEntry: React.FC = () => {
 
   const durationInfo = getCalculatedDurationInfo();
 
-  // Progress calculations (14 required fields including End Date/Time)
-  const totalRequired = 14; 
+  // Progress calculations (16 required fields including new ones)
+  const totalRequired = 16; 
   const doneCount = [
     !!date,
     !!shiftId,
@@ -328,13 +245,15 @@ export const BreakdownEntry: React.FC = () => {
     !!timeEnd,
     !!departmentId,
     !!machineId,
-    (filteredSubAssemblies.length === 0 || !!unitId),
+    (unitList.length === 0 || !!unitId),
     !!problemCategoryId,
     !!categoryId,
     !!attendedBy,
     !!submittedBy,
     problemDescription.trim().length >= 5,
-    actionTakenDescription.trim().length >= 5
+    actionTakenDescription.trim().length >= 5,
+    problemReported.trim().length >= 3,   // Step 5: Problem Reported
+    true                                   // spareConsumed is optional
   ].filter(Boolean).length;
 
   const percentComplete = Math.round((doneCount / totalRequired) * 100);
@@ -346,11 +265,11 @@ export const BreakdownEntry: React.FC = () => {
   const step4Done = doneCount >= 14;
 
   // Active shift object helper for header badge
-  const activeShift = shifts.find(s => s.id === shiftId);
+  const activeShift = MASTER_SHIFTS.find(s => s.id === shiftId);
   const getShiftBadgeClass = () => {
     if (!activeShift) return 'bg-slate-800 border-slate-700 text-slate-400';
-    if (activeShift.name.includes('First')) return 'bg-sky-500/10 border-sky-500/20 text-sky-400';
-    if (activeShift.name.includes('Second')) return 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400';
+    if (activeShift && activeShift.name.includes('First')) return 'bg-sky-500/10 border-sky-500/20 text-sky-400';
+    if (activeShift && activeShift.name.includes('Second')) return 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400';
     return 'bg-violet-500/10 border-violet-500/20 text-violet-400';
   };
 
@@ -362,9 +281,11 @@ export const BreakdownEntry: React.FC = () => {
   const [successRef, setSuccessRef] = useState('-');
 
   const handleClearForm = () => {
-    const currentDetails = getDetectedDateAndShift();
-    setDate(currentDetails.dateStr);
-    setDateEnd(currentDetails.dateStr);
+    const currentDetails = detectCurrentShift();
+    setDate(currentDetails.shiftDateStr);
+    setDateEnd(currentDetails.shiftDateStr);
+    setShiftId(currentDetails.shiftId);
+    setShiftTimeError(null);
     setTimeStart(getCurrentTimeString());
     setTimeEnd('');
     setDepartmentId('');
@@ -378,6 +299,9 @@ export const BreakdownEntry: React.FC = () => {
     setProblemDescription('');
     setActionTakenDescription('');
     setRootCauseDescription('');
+    setProblemReported('');
+    setSpareConsumed('');
+    setAdditionalTeam([]);
     setRemarks('');
     setError(null);
 
@@ -414,12 +338,15 @@ export const BreakdownEntry: React.FC = () => {
     if (!timeEnd) errors.push('End time is required');
     if (!departmentId) errors.push('Machine Type is required');
     if (!machineId) errors.push('Machine Name is required');
-    if (filteredSubAssemblies.length > 0 && !unitId) errors.push('Unit / Section is required');
+    if (unitList.length > 0 && !unitId) errors.push('Unit / Section is required');
     if (!problemCategoryId) errors.push('Type of Problem is required');
     if (!categoryId) errors.push('Category is required');
     if (!attendedBy) errors.push('Attended By is required');
     if (!submittedBy) errors.push('Submitted By is required');
 
+    if (problemReported.trim().length < 3) {
+      errors.push('Problem Reported is required (min 3 chars)');
+    }
     if (problemDescription.trim().length < 5) {
       errors.push('Description of Problem is required (min 5 chars)');
     }
@@ -433,6 +360,10 @@ export const BreakdownEntry: React.FC = () => {
       if (endObj.getTime() <= startObj.getTime()) {
         errors.push('End date/time must be after start date/time');
       }
+    }
+
+    if (shiftTimeError) {
+      errors.push(shiftTimeError);
     }
 
     if (errors.length > 0) {
@@ -455,16 +386,31 @@ export const BreakdownEntry: React.FC = () => {
         unit: unitId,
         problemType: problemCategoryId,
         category: categoryId,
+        problemReported: problemReported.trim(),
         description: problemDescription.trim(),
         actionTaken: actionTakenDescription.trim(),
         rootCause: rootCauseDescription.trim() || null,
         timeStart: formattedTimeStart,
         timeEnd: formattedTimeEnd,
+        dateEnd: dateEnd,
         durationMin: String(durationInfo.minutes),
         attendedBy,
+        additionalTeam: additionalTeam.join(', ') || null, // "Sandip, Ravi, Krishna"
         submittedBy,
+        spareConsumed: spareConsumed.trim() || null,  // e.g. "Bearing 6205 x2, Belt B-68 x1"
         remarks: remarks.trim() || null
       };
+
+      // If offline, save to queue and show success without API call
+      if (!isOnline) {
+        enqueueOffline(payload);
+        setOfflineCount(getOfflineQueueCount());
+        setSuccessRef('OFFLINE-QUEUED');
+        setSuccess(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setIsSubmitting(false);
+        return;
+      }
 
       const response = await api.post('/breakdowns/create', payload);
 
@@ -559,6 +505,20 @@ export const BreakdownEntry: React.FC = () => {
         </div>
       </div>
 
+      {/* OFFLINE BANNER */}
+      {!isOnline && (
+        <div className="my-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 p-3 rounded-xl flex items-center gap-2.5 text-xs animate-fade-in">
+          <WifiOff size={14} className="shrink-0" />
+          <span>You are offline. Submission will be saved locally and auto-synced when connection restores.</span>
+        </div>
+      )}
+      {isOnline && offlineCount > 0 && (
+        <div className="my-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-xl flex items-center gap-2.5 text-xs animate-fade-in">
+          <Check size={14} className="shrink-0" />
+          <span>Back online — {offlineCount} queued {offlineCount === 1 ? 'entry' : 'entries'} will sync automatically.</span>
+        </div>
+      )}
+
       {/* ERROR NOTICE */}
       {error && (
         <div className="my-4 bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl flex items-start gap-2.5 text-xs animate-fade-in">
@@ -610,13 +570,13 @@ export const BreakdownEntry: React.FC = () => {
                 <select
                   required
                   value={shiftId}
-                  onChange={(e) => setShiftId(e.target.value)}
-                  className="glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 appearance-none bg-slate-900 cursor-pointer"
+                  onChange={(e) => handleShiftChange(e.target.value)}
+                  className="glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 appearance-none cursor-pointer"
                 >
                   <option value="" disabled>Select shift</option>
-                  {shifts.map((s) => (
+                  {MASTER_SHIFTS.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} ({s.code.replace('SHIFT_', 'S')})
+                      {s.name} ({s.code})
                     </option>
                   ))}
                 </select>
@@ -632,9 +592,12 @@ export const BreakdownEntry: React.FC = () => {
                   type="time"
                   required
                   value={timeStart}
-                  onChange={(e) => setTimeStart(e.target.value)}
-                  className="glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200"
+                  onChange={(e) => handleTimeStartChange(e.target.value)}
+                  className={`glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 ${shiftTimeError ? 'border-red-500/50' : ''}`}
                 />
+                {shiftTimeError && (
+                  <p className="text-[9px] text-red-400 mt-1 font-mono">{shiftTimeError}</p>
+                )}
               </div>
 
               <div>
@@ -692,13 +655,11 @@ export const BreakdownEntry: React.FC = () => {
                 required
                 value={departmentId}
                 onChange={(e) => setDepartmentId(e.target.value)}
-                className="glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 appearance-none bg-slate-900 cursor-pointer"
+                className="glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 appearance-none cursor-pointer"
               >
-                <option value="" disabled>Select machine type</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
+                <option value="" disabled>Select machine type / department</option>
+                {DEPARTMENTS.map((dept) => (
+                  <option key={dept} value={dept}>{dept}</option>
                 ))}
               </select>
             </div>
@@ -712,15 +673,13 @@ export const BreakdownEntry: React.FC = () => {
                 disabled={!departmentId}
                 value={machineId}
                 onChange={(e) => setMachineId(e.target.value)}
-                className="glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 appearance-none bg-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="" disabled>
-                  {departmentId ? 'Select machine' : 'Select machine type first'}
+                  {departmentId ? 'Select machine name' : 'Select machine type first'}
                 </option>
-                {filteredMachines.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
+                {machineNames.map((name) => (
+                  <option key={name} value={name}>{name}</option>
                 ))}
               </select>
             </div>
@@ -730,19 +689,17 @@ export const BreakdownEntry: React.FC = () => {
                 Unit / Section <span className="text-red-500">*</span>
               </label>
               <select
-                required
-                disabled={!machineId || filteredSubAssemblies.length === 0}
+                required={unitList.length > 0}
+                disabled={!machineId || unitList.length === 0}
                 value={unitId}
                 onChange={(e) => setUnitId(e.target.value)}
-                className="glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 appearance-none bg-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="" disabled>
-                  {!machineId ? 'Select machine name first' : 'Select unit'}
+                  {!machineId ? 'Select machine name first' : unitList.length === 0 ? 'No units defined' : 'Select unit / section'}
                 </option>
-                {filteredSubAssemblies.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
+                {unitList.map((unit) => (
+                  <option key={unit} value={unit}>{unit}</option>
                 ))}
               </select>
             </div>
@@ -766,11 +723,9 @@ export const BreakdownEntry: React.FC = () => {
                   onChange={(e) => setProblemCategoryId(e.target.value)}
                   className="glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 appearance-none bg-slate-900 cursor-pointer"
                 >
-                  <option value="" disabled>Select</option>
-                  {problemCategories.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
+                  <option value="" disabled>Select problem type</option>
+                  {PROBLEM_TYPES.map((pt) => (
+                    <option key={pt} value={pt}>{pt}</option>
                   ))}
                 </select>
               </div>
@@ -785,11 +740,9 @@ export const BreakdownEntry: React.FC = () => {
                   onChange={(e) => setCategoryId(e.target.value)}
                   className="glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 appearance-none bg-slate-900 cursor-pointer"
                 >
-                  <option value="" disabled>Select</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
+                  <option value="" disabled>Select category</option>
+                  {MASTER_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
                   ))}
                 </select>
               </div>
@@ -855,16 +808,17 @@ export const BreakdownEntry: React.FC = () => {
             </div>
           </div>
 
-          {/* SECTION 4: TEAM */}
+          {/* SECTION 4: TIME, TEAM & RESOURCES */}
           <div className="glass-panel p-5 space-y-4 shadow-md">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 border-b border-white/5 pb-2 uppercase tracking-wider font-mono">
               <User size={13} className="text-emerald-500" />
-              <span>Team</span>
+              <span>Team & Resources</span>
             </div>
 
+            {/* Primary Attended By */}
             <div>
               <label className="block text-[10px] font-semibold text-gray-300 mb-1.5 uppercase tracking-wide">
-                Attended By <span className="text-red-500">*</span>
+                Attended By (Primary) <span className="text-red-500">*</span>
               </label>
               <select
                 required
@@ -872,15 +826,45 @@ export const BreakdownEntry: React.FC = () => {
                 onChange={(e) => setAttendedBy(e.target.value)}
                 className="glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 appearance-none bg-slate-900 cursor-pointer"
               >
-                <option value="" disabled>Select technician</option>
-                {technicians.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
+                <option value="" disabled>Select primary technician</option>
+                {MASTER_TECHNICIANS.map((t) => (
+                  <option key={t} value={t}>{t}</option>
                 ))}
               </select>
             </div>
 
+            {/* Additional Team Members */}
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-300 mb-1.5 uppercase tracking-wide">
+                Additional Team Members <span className="text-[9px] text-gray-500 font-sans normal-case font-normal">(optional — for PM or multi-person jobs)</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowTeamModal(true)}
+                className="w-full glass-input px-3 py-2.5 rounded-lg text-xs text-left flex items-center justify-between gap-2 cursor-pointer hover:border-emerald-500/30 transition-colors"
+              >
+                <span className={additionalTeam.length > 0 ? 'text-gray-200' : 'text-gray-500'}>
+                  {additionalTeam.length > 0
+                    ? additionalTeam.join(', ')
+                    : 'Tap to select co-workers...'}
+                </span>
+                <Users size={13} className="text-gray-500 shrink-0" />
+              </button>
+              {additionalTeam.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {additionalTeam.map((name) => (
+                    <span key={name} className="inline-flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full">
+                      {name}
+                      <button type="button" onClick={() => setAdditionalTeam(prev => prev.filter(n => n !== name))}>
+                        <X size={10} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Submitted By */}
             <div>
               <label className="block text-[10px] font-semibold text-gray-300 mb-1.5 uppercase tracking-wide">
                 Submitted By <span className="text-red-500">*</span> <span className="text-[9px] text-gray-500 font-sans normal-case font-normal">(your name)</span>
@@ -892,14 +876,98 @@ export const BreakdownEntry: React.FC = () => {
                 className="glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 appearance-none bg-slate-900 cursor-pointer"
               >
                 <option value="" disabled>Select your name</option>
-                {technicians.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
+                {MASTER_TECHNICIANS.map((t) => (
+                  <option key={t} value={t}>{t}</option>
                 ))}
               </select>
             </div>
 
+            {/* Spare Consumed */}
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-300 mb-1.5 uppercase tracking-wide">
+                Spare Parts Consumed <span className="text-[9px] text-gray-500 font-sans normal-case font-normal">(optional — free text, e.g. Bearing 6205 x2)</span>
+              </label>
+              <input
+                type="text"
+                value={spareConsumed}
+                onChange={(e) => setSpareConsumed(e.target.value)}
+                placeholder="e.g. Bearing 6205 x2, V-Belt B-68 x1, Relay 24V x1"
+                className="glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200"
+              />
+              <p className="text-[9px] text-gray-500 mt-1 font-mono">Will link to Spare Parts module in future release.</p>
+            </div>
+          </div>
+
+          {/* SECTION 5: PROBLEM REPORTED, ACTION & ROOT CAUSE */}
+          <div className="glass-panel p-5 space-y-4 shadow-md">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 border-b border-white/5 pb-2 uppercase tracking-wider font-mono">
+              <Briefcase size={13} className="text-emerald-500" />
+              <span>Problem, Action & Resolution</span>
+            </div>
+
+            {/* Problem Reported */}
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="block text-[10px] font-semibold text-gray-300 uppercase tracking-wide">
+                  Problem Reported <span className="text-red-500">*</span>
+                </label>
+                <span className={`text-[9px] font-mono ${problemReported.length > 180 ? 'text-red-400' : 'text-gray-500'}`}>
+                  {problemReported.length} / 200
+                </span>
+              </div>
+              <textarea
+                required
+                rows={2}
+                maxLength={200}
+                value={problemReported}
+                onChange={(e) => setProblemReported(e.target.value)}
+                placeholder="What problem was reported by operator / supervisor..."
+                className="glass-input px-3 py-2 block w-full rounded-lg text-xs text-gray-200 resize-y"
+              />
+            </div>
+
+            {/* Action Taken */}
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="block text-[10px] font-semibold text-gray-300 uppercase tracking-wide">
+                  Action Taken <span className="text-red-500">*</span>
+                </label>
+                <span className={`text-[9px] font-mono ${actionTakenDescription.length > 270 ? 'text-red-400' : 'text-gray-500'}`}>
+                  {actionTakenDescription.length} / 300
+                </span>
+              </div>
+              <textarea
+                required
+                rows={3}
+                maxLength={300}
+                value={actionTakenDescription}
+                onChange={(e) => setActionTakenDescription(e.target.value)}
+                placeholder="What was done to fix it..."
+                className="glass-input px-3 py-2 block w-full rounded-lg text-xs text-gray-200 resize-y"
+              />
+            </div>
+
+            {/* Root Cause */}
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="block text-[10px] font-semibold text-gray-300 uppercase tracking-wide">
+                  Root Cause of Problem
+                </label>
+                <span className={`text-[9px] font-mono ${rootCauseDescription.length > 180 ? 'text-red-400' : 'text-gray-500'}`}>
+                  {rootCauseDescription.length} / 200
+                </span>
+              </div>
+              <textarea
+                rows={2}
+                maxLength={200}
+                value={rootCauseDescription}
+                onChange={(e) => setRootCauseDescription(e.target.value)}
+                placeholder="Root cause (if identified)..."
+                className="glass-input px-3 py-2 block w-full rounded-lg text-xs text-gray-200 resize-y"
+              />
+            </div>
+
+            {/* Additional Remarks */}
             <div>
               <label className="block text-[10px] font-semibold text-gray-300 mb-1.5 uppercase tracking-wide">
                 Additional Remarks <span className="text-[9px] text-gray-500 font-sans normal-case font-normal">(optional)</span>
@@ -956,6 +1024,74 @@ export const BreakdownEntry: React.FC = () => {
           </div>
 
         </form>
+      )}
+
+      {/* TEAM SELECTION MODAL */}
+      {showTeamModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="glass-panel rounded-2xl w-full max-w-sm p-5 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-gray-100 flex items-center gap-2">
+                <Users size={16} className="text-emerald-400" />
+                Select Team Members
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowTeamModal(false)}
+                className="text-gray-400 hover:text-gray-200 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-500 mb-3">Select all co-workers involved. Primary attended-by is separate.</p>
+            <div className="space-y-1 max-h-64 overflow-y-auto">
+              {MASTER_TECHNICIANS
+                .filter((t: string) => t !== attendedBy && t !== submittedBy)
+                .map((tech: string) => {
+                  const isSelected = additionalTeam.includes(tech);
+                  return (
+                    <button
+                      key={tech}
+                      type="button"
+                      onClick={() => {
+                        setAdditionalTeam(prev =>
+                          isSelected ? prev.filter(n => n !== tech) : [...prev, tech]
+                        );
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs cursor-pointer transition-colors text-left ${
+                        isSelected
+                          ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
+                          : 'hover:bg-white/5 border border-transparent text-gray-300'
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                        isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-gray-600'
+                      }`}>
+                        {isSelected && <Check size={10} className="text-white" />}
+                      </div>
+                      {tech}
+                    </button>
+                  );
+                })}
+            </div>
+            <div className="flex gap-3 mt-4 pt-4 border-t border-white/5">
+              <button
+                type="button"
+                onClick={() => setAdditionalTeam([])}
+                className="flex-1 py-2 text-xs text-gray-400 hover:text-gray-200 border border-white/5 rounded-lg cursor-pointer transition-colors"
+              >
+                Clear All
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowTeamModal(false)}
+                className="flex-1 py-2 text-xs font-semibold text-white glow-btn-primary rounded-lg cursor-pointer"
+              >
+                Confirm ({additionalTeam.length} selected)
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

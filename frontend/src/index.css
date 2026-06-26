@@ -123,3 +123,36 @@
 .animate-pulse-border {
   animation: pulseBorder 3s infinite ease-in-out;
 }
+
+/* ── DROPDOWN DARK MODE FIX (Bug 1) ─────────────────────────────────────────
+   Browser-native <select> option lists render with system default white
+   background. Force dark background globally so options are readable in
+   the dark theme throughout the entire application.
+   ─────────────────────────────────────────────────────────────────────── */
+select {
+  background-color: #0f172a !important;
+  color: #e2e8f0 !important;
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+select option:hover,
+select option:focus,
+select option:checked {
+  background-color: #10b981 !important;
+  color: #ffffff !important;
+}
+
+select option:disabled {
+  color: #64748b !important;
+}
+
+/* Ensure disabled selects still look dark */
+select:disabled {
+  background-color: #0f172a !important;
+  opacity: 0.5;
+}
