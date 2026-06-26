@@ -35,3 +35,14 @@ httpServer.listen(PORT, () => {
   console.log(`🌍 Env:    ${process.env.NODE_ENV || 'development'}`);
   console.log(`=========================================\n`);
 });
+
+// ==========================================
+// SCHEDULED JOBS
+// ==========================================
+// Register after server starts so that any startup errors don't
+// prevent the HTTP server from coming up.
+import { registerSyncJob } from './jobs/syncJob';
+import { registerDailyReportJob } from './jobs/dailyReportJob';
+
+registerSyncJob();
+registerDailyReportJob();
