@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Save, X, Clock } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Clock, Lock } from 'lucide-react';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 
 export const PMFrequencies: React.FC = () => {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role?.code === 'superadmin';
   const [frequencies, setFrequencies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   

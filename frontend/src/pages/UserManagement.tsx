@@ -1,36 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { 
-  Users, 
-  UserPlus, 
-  Trash2, 
-  ShieldCheck, 
-  Mail, 
-  Lock, 
-  User as UserIcon,
-  ShieldAlert
+import {
+  Users, UserPlus, Trash2, ShieldCheck, Mail,
+  Lock, User as UserIcon, ShieldAlert, Edit2, X, Save, Eye, EyeOff
 } from 'lucide-react';
 
 interface UserRecord {
+  id?: string;
   name: string;
   email: string;
   level: string;
 }
 
+const ROLES = [
+  { value: 'superadmin', label: 'Super Admin',  color: 'bg-red-500/10 border-red-500/20 text-red-400' },
+  { value: 'admin',      label: 'Admin',         color: 'bg-amber-500/10 border-amber-500/20 text-amber-400' },
+  { value: 'manager',    label: 'Manager',       color: 'bg-purple-500/10 border-purple-500/20 text-purple-400' },
+  { value: 'supervisor', label: 'Supervisor',    color: 'bg-sky-500/10 border-sky-500/20 text-sky-400' },
+  { value: 'technician', label: 'Technician',    color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' },
+  { value: 'viewer',     label: 'Viewer',        color: 'bg-slate-800 border-slate-700 text-slate-400' },
+];
+
+const getRoleStyle = (level: string) =>
+  ROLES.find(r => r.value === level)?.color || 'bg-slate-800 border-slate-700 text-slate-400';
+
 export const UserManagement: React.FC = () => {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<UserRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  // Create form state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [level, setLevel] = useState('supervisor');
-
-  // UX states
-  const [isLoading, setIsLoading] = useState(true);
+  const [level, setLevel] = useState('technician');
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+
+  // Edit modal state
+  const [editUser, setEditUser] = useState<UserRecord | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editLevel, setEditLevel] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [isEditSaving, setIsEditSaving] = useState(false);
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -40,278 +55,296 @@ export const UserManagement: React.FC = () => {
       if (res.data?.success && res.data?.data?.users) {
         setUsers(res.data.data.users);
       }
-    } catch (err: any) {
-      console.error('Failed to load user list', err);
+    } catch {
       setError('Unable to load user accounts.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  useEffect(() => { fetchUsers(); }, []);
+
+  const showMsg = (msg: string, isError = false) => {
+    if (isError) setError(msg); else setSuccess(msg);
+    setTimeout(() => { setError(null); setSuccess(null); }, 4000);
+  };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
-
     if (!name || !email || !password || !level) {
-      setError('Please fill in all fields.');
-      return;
+      showMsg('All fields are required.', true); return;
     }
-
     if (password.length < 6) {
-      setError('Password must be at least 6 characters long.');
-      return;
+      showMsg('Password must be at least 6 characters.', true); return;
     }
-
     setIsSubmitting(true);
     try {
-      const res = await api.post('/users/create', {
-        name,
-        email,
-        password,
-        level
-      });
-
-      if (res.data?.success) {
-        setSuccess(`User ${email} created successfully.`);
-        setName('');
-        setEmail('');
-        setPassword('');
-        setLevel('supervisor');
-        fetchUsers();
-        setTimeout(() => setSuccess(null), 3000);
-      }
+      await api.post('/auth/register', { name, email, password, level, plantCode: 'DAMAN' });
+      showMsg(`User "${name}" created successfully.`);
+      setName(''); setEmail(''); setPassword(''); setLevel('technician');
+      fetchUsers();
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Failed to create user account.';
-      setError(msg);
+      showMsg(err.response?.data?.message || 'Failed to create user.', true);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDeleteUser = async (emailToDelete: string) => {
-    if (emailToDelete === currentUser?.email) {
-      setError('Cannot delete your own active session account.');
-      return;
-    }
-    if (emailToDelete === 'yogeshkp85@gmail.com') {
-      setError('Cannot delete the root super admin.');
-      return;
-    }
+  const openEdit = (u: UserRecord) => {
+    setEditUser(u);
+    setEditName(u.name);
+    setEditLevel(u.level);
+    setEditPassword('');
+  };
 
-    if (!window.confirm(`Are you sure you want to delete ${emailToDelete}?`)) {
-      return;
-    }
-
-    setError(null);
-    setSuccess(null);
+  const handleEditSave = async () => {
+    if (!editUser) return;
+    setIsEditSaving(true);
     try {
-      const res = await api.delete(`/users/${emailToDelete}`);
-      if (res.data?.success) {
-        setSuccess(`User account deleted.`);
-        fetchUsers();
-        setTimeout(() => setSuccess(null), 3000);
+      const payload: any = { name: editName, level: editLevel };
+      if (editPassword.trim().length >= 6) payload.password = editPassword;
+      else if (editPassword.trim().length > 0 && editPassword.trim().length < 6) {
+        showMsg('New password must be at least 6 characters.', true);
+        setIsEditSaving(false); return;
       }
+      await api.put(`/users/${editUser.email}`, payload);
+      showMsg(`User "${editName}" updated successfully.`);
+      setEditUser(null);
+      fetchUsers();
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Failed to delete user account.';
-      setError(msg);
+      showMsg(err.response?.data?.message || 'Failed to update user.', true);
+    } finally {
+      setIsEditSaving(false);
+    }
+  };
+
+  const handleDeleteUser = async (email: string) => {
+    if (!window.confirm(`Permanently delete user "${email}"? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/users/${email}`);
+      showMsg('User removed.');
+      fetchUsers();
+    } catch {
+      showMsg('Failed to remove user.', true);
     }
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
-        <div>
-          <h2 className="text-xl font-bold font-display text-gray-100 flex items-center gap-2">
-            <Users size={22} className="text-emerald-500" />
-            <span>User Accounts Console</span>
-          </h2>
-          <p className="text-xs text-gray-400 mt-1">Manage corporate personnel accounts, level access roles, and security details.</p>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+            <Users size={18} className="text-cyan-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-100">User Management</h1>
+            <p className="text-xs text-gray-500">Manage user accounts and role assignments</p>
+          </div>
         </div>
-        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-semibold font-mono">
-          System Registry: {users.length} profiles
+        <div className="bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-3 py-1.5 rounded-lg text-xs font-semibold font-mono">
+          {users.length} accounts
         </div>
       </div>
 
-      {success && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-xl flex items-center gap-3 text-xs animate-fade-in">
-          <ShieldCheck size={18} />
-          <span>{success}</span>
-        </div>
-      )}
-
+      {/* Alerts */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl flex items-center gap-3 text-xs animate-fade-in">
-          <ShieldAlert size={18} />
-          <span>{error}</span>
+        <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl text-sm">
+          <ShieldAlert size={15} /> {error}
+        </div>
+      )}
+      {success && (
+        <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-3 rounded-xl text-sm">
+          <ShieldCheck size={15} /> {success}
         </div>
       )}
 
-      {/* Grid: Forms & Tables */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
         {/* Create User Form */}
-        <div className="glass-panel p-6 rounded-2xl border-white/5 h-fit shadow-lg">
-          <h3 className="text-sm font-bold font-display text-gray-200 mb-5 flex items-center gap-2">
-            <UserPlus size={16} className="text-emerald-400" />
-            <span>Create New User</span>
-          </h3>
-
-          <form onSubmit={handleCreateUser} className="space-y-4">
+        <div className="glass-panel p-5 rounded-xl lg:col-span-1">
+          <h2 className="text-sm font-bold text-gray-200 mb-4 flex items-center gap-2">
+            <UserPlus size={15} className="text-cyan-400" /> Add New User
+          </h2>
+          <form onSubmit={handleCreateUser} className="space-y-3">
             <div>
-              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                Full Name *
-              </label>
-              <div className="relative rounded-lg">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
-                  <UserIcon size={14} />
-                </div>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Employee Name"
-                  className="glass-input pl-9 pr-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 placeholder-gray-600"
-                />
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Full Name *</label>
+              <input type="text" value={name} onChange={e => setName(e.target.value)}
+                placeholder="Full name" required
+                className="glass-input px-3 py-2.5 w-full rounded-lg text-xs text-gray-200" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Email *</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="user@parksons.com" required
+                className="glass-input px-3 py-2.5 w-full rounded-lg text-xs text-gray-200" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Password *</label>
+              <div className="relative">
+                <input type={showPassword ? 'text' : 'password'} value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Min 6 characters" required
+                  className="glass-input px-3 py-2.5 w-full rounded-lg text-xs text-gray-200 pr-9" />
+                <button type="button" onClick={() => setShowPassword(p => !p)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 cursor-pointer">
+                  {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
+                </button>
               </div>
             </div>
-
             <div>
-              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                Email Address *
-              </label>
-              <div className="relative rounded-lg">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
-                  <Mail size={14} />
-                </div>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="employee@parksons.com"
-                  className="glass-input pl-9 pr-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 placeholder-gray-600"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                Password *
-              </label>
-              <div className="relative rounded-lg">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
-                  <Lock size={14} />
-                </div>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min 6 chars"
-                  className="glass-input pl-9 pr-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 placeholder-gray-600"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                Access Level Role *
-              </label>
-              <select
-                required
-                value={level}
-                onChange={(e) => setLevel(e.target.value)}
-                className="glass-input px-3 py-2.5 block w-full rounded-lg text-xs text-gray-200 appearance-none bg-slate-950 cursor-pointer"
-              >
-                <option value="superadmin">Super Admin</option>
-                <option value="admin">Admin</option>
-                <option value="manager">Manager</option>
-                <option value="supervisor">Supervisor</option>
-                <option value="technician">Technician</option>
-                <option value="viewer">Viewer</option>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Role *</label>
+              <select value={level} onChange={e => setLevel(e.target.value)}
+                className="glass-input px-3 py-2.5 w-full rounded-lg text-xs text-gray-200 cursor-pointer">
+                {ROLES.map(r => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
               </select>
+              <p className="text-[9px] text-gray-500 mt-1">
+                {level === 'technician' && 'Can view Dashboard, enter Breakdowns, execute PM tasks'}
+                {level === 'supervisor' && 'Technician access + can approve breakdown entries'}
+                {level === 'manager' && 'Can view Dashboard, Reports, approve entries'}
+                {level === 'admin' && 'Full access except User Management'}
+                {level === 'superadmin' && 'Complete system access including all settings'}
+                {level === 'viewer' && 'Read-only access to Dashboard and Reports'}
+              </p>
             </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-2.5 rounded-lg text-xs font-semibold text-white glow-btn-primary cursor-pointer disabled:opacity-50"
-            >
-              {isSubmitting ? 'Provisioning...' : 'Add Account'}
+            <button type="submit" disabled={isSubmitting}
+              className="w-full py-2.5 text-xs font-semibold text-white glow-btn-primary rounded-lg cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 mt-2">
+              {isSubmitting
+                ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                : <UserPlus size={13} />}
+              Create User
             </button>
           </form>
         </div>
 
-        {/* User List Table */}
-        <div className="glass-panel rounded-2xl border-white/5 lg:col-span-2 overflow-hidden flex flex-col min-h-[350px] shadow-lg">
-          <div className="px-6 py-4 border-b border-white/5 bg-[#0f172a]/10">
-            <h3 className="text-xs font-bold font-display text-gray-300 uppercase tracking-wider">
-              System Accounts Index
-            </h3>
+        {/* Users Table */}
+        <div className="glass-panel rounded-xl overflow-hidden lg:col-span-2">
+          <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
+            <h2 className="text-sm font-bold text-gray-200">All User Accounts</h2>
+            <span className="text-[10px] text-gray-500 font-mono">Click Edit to change role or password</span>
           </div>
-
           {isLoading ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-8">
-              <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-              <p className="mt-2 text-xs text-gray-500 font-mono">Loading user registry list...</p>
+            <div className="flex items-center justify-center py-12 gap-2 text-gray-500 text-sm">
+              <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+              Loading users...
             </div>
+          ) : users.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 text-sm">No users found.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-white/5 bg-[#0f172a]/20 text-gray-400 font-semibold text-[10px] uppercase tracking-wider">
-                    <th className="py-3 px-6">Name</th>
-                    <th className="py-3 px-4">Email</th>
-                    <th className="py-3 px-4">Role / Access Level</th>
-                    <th className="py-3 px-6 text-right">Delete</th>
+                  <tr className="border-b border-white/5 bg-slate-900/30 text-[10px] uppercase tracking-wider text-gray-400">
+                    <th className="py-3 px-5 text-left">Name</th>
+                    <th className="py-3 px-4 text-left">Email</th>
+                    <th className="py-3 px-4 text-left">Role</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
-                  {users.map((u) => (
-                    <tr key={u.email} className="hover:bg-white/2 transition-colors">
-                      <td className="py-3 px-6 font-semibold text-gray-200">{u.name}</td>
-                      <td className="py-3 px-4 font-mono text-gray-400">{u.email}</td>
-                      <td className="py-3 px-4 text-xs font-semibold">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] border ${
-                          u.level === 'superadmin' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
-                          u.level === 'admin' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
-                          u.level === 'supervisor' ? 'bg-sky-500/10 border-sky-500/20 text-sky-400' :
-                          u.level === 'manager' ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' :
-                          u.level === 'technician' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                          'bg-slate-800 border-slate-700 text-slate-400'
-                        }`}>
-                          {u.level.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="py-3 px-6 text-right">
-                        {u.email !== currentUser?.email && u.email !== 'yogeshkp85@gmail.com' ? (
-                          <button
-                            onClick={() => handleDeleteUser(u.email)}
-                            className="p-1.5 text-gray-500 hover:text-red-400 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        ) : (
-                          <span className="text-[10px] text-gray-600 font-mono italic">Protected</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                <tbody>
+                  {users.map((u, i) => {
+                    const isProtected = u.email === currentUser?.email || u.email === 'yogeshkp85@gmail.com';
+                    return (
+                      <tr key={i} className="border-b border-white/5 hover:bg-white/2 transition-colors">
+                        <td className="py-3 px-5 font-semibold text-gray-200">{u.name}</td>
+                        <td className="py-3 px-4 font-mono text-gray-400 text-[11px]">{u.email}</td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getRoleStyle(u.level)}`}>
+                            {ROLES.find(r => r.value === u.level)?.label || u.level.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {!isProtected ? (
+                              <>
+                                <button onClick={() => openEdit(u)}
+                                  className="p-1.5 text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded cursor-pointer transition-colors"
+                                  title="Edit user">
+                                  <Edit2 size={12} />
+                                </button>
+                                <button onClick={() => handleDeleteUser(u.email)}
+                                  className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded cursor-pointer transition-colors"
+                                  title="Delete user">
+                                  <Trash2 size={12} />
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-[10px] text-gray-600 font-mono italic">Protected</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </div>
-
       </div>
+
+      {/* Edit User Modal */}
+      {editUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="glass-panel rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-sm font-bold text-gray-100 flex items-center gap-2">
+                <Edit2 size={14} className="text-emerald-400" /> Edit User
+              </h3>
+              <button onClick={() => setEditUser(null)} className="text-gray-400 hover:text-gray-200 cursor-pointer">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Email (read-only)</label>
+                <div className="glass-input px-3 py-2 rounded-lg text-xs text-gray-500 font-mono">{editUser.email}</div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Full Name</label>
+                <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
+                  className="glass-input px-3 py-2 w-full rounded-lg text-xs text-gray-200" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Role</label>
+                <select value={editLevel} onChange={e => setEditLevel(e.target.value)}
+                  className="glass-input px-3 py-2 w-full rounded-lg text-xs text-gray-200 cursor-pointer">
+                  {ROLES.map(r => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
+                </select>
+                <p className="text-[9px] text-gray-500 mt-1">
+                  Changing role takes effect on next login by that user.
+                </p>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                  New Password <span className="text-gray-600 font-normal normal-case">(leave blank to keep current)</span>
+                </label>
+                <input type="password" value={editPassword} onChange={e => setEditPassword(e.target.value)}
+                  placeholder="Enter new password or leave blank"
+                  className="glass-input px-3 py-2 w-full rounded-lg text-xs text-gray-200" />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-5 pt-4 border-t border-white/5">
+              <button onClick={() => setEditUser(null)}
+                className="flex-1 py-2 text-xs text-gray-400 border border-white/10 rounded-lg cursor-pointer hover:text-gray-200">
+                Cancel
+              </button>
+              <button onClick={handleEditSave} disabled={isEditSaving}
+                className="flex-1 py-2 text-xs font-semibold text-white glow-btn-primary rounded-lg cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2">
+                {isEditSaving
+                  ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <Save size={12} />}
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -12,6 +12,7 @@ import syncRoutes from './sync.routes';
 import { router as machinesRouter } from './machines.routes';
 import { router as configRouter } from './config.routes';
 import { router as pmRouter } from './pm.routes';
+import mastersRouter from './masters.routes';
 
 const router = Router();
 
@@ -49,6 +50,7 @@ router.get('/auth/register-metadata', (req, res) => userCtrl.getRegisterMetadata
 router.get('/users', authorize('Users'), (req, res) => userCtrl.getAll(req, res));
 router.post('/users/create', authorize('Users'), (req, res) => userCtrl.create(req, res));
 router.delete('/users/:email', authorize('Users'), (req, res) => userCtrl.delete(req, res));
+router.put('/users/:email', authorize('Users'), (req, res) => userCtrl.update(req, res));
 router.post('/users/init', (req, res) => userCtrl.init(req, res));
 
 // ---------------------------------------------------------
@@ -110,5 +112,6 @@ router.use('/config', authenticate, authorize('Masters'), configRouter);
 // 11. Preventive Maintenance (PM)
 // ---------------------------------------------------------
 router.use('/pm', authenticate, authorize('PreventiveMaintenance'), pmRouter);
+router.use('/masters', mastersRouter);  // Master Setup — auth handled inside mastersRouter
 
 export default router;

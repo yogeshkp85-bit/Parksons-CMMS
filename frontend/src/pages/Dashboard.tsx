@@ -86,6 +86,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export const Dashboard: React.FC = () => {
+  // Drill-down modal state
+  const [drillRecord, setDrillRecord] = useState<any | null>(null);
   const { user } = useAuth();
   
   // RAW State
@@ -1027,7 +1029,7 @@ export const Dashboard: React.FC = () => {
                     const colorClass = av >= 99 ? 'text-emerald-400' : av >= 97 ? 'text-amber-400' : 'text-red-400';
                     const fillBg = av >= 99 ? 'bg-emerald-500' : av >= 97 ? 'bg-amber-500' : 'bg-red-500';
                     return (
-                      <tr key={index} className="hover:bg-white/2 transition-colors">
+                      <tr key={index} className="hover:bg-white/2 transition-colors cursor-pointer" onClick={() => setDrillRecord(item)} title="Click for full details">
                         <td className="py-3.5 px-5"><strong>{item.name}</strong></td>
                         <td className="py-3.5 px-3 text-gray-400">{item.dept}</td>
                         <td className="py-3.5 px-3 text-center text-red-400 font-semibold">{item.bc}</td>
@@ -1073,7 +1075,7 @@ export const Dashboard: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {tablesData.monthlyTable.map((item, index) => (
-                    <tr key={index} className="hover:bg-white/2 transition-colors">
+                    <tr key={index} className="hover:bg-white/2 transition-colors cursor-pointer" onClick={() => setDrillRecord(item)} title="Click for full details">
                       <td className="py-3.5 px-5"><strong>{item.month}</strong></td>
                       <td className="py-3.5 px-3 text-center">{item.entries}</td>
                       <td className="py-3.5 px-3 text-center text-red-400 font-semibold">{item.bc}</td>
@@ -1092,7 +1094,7 @@ export const Dashboard: React.FC = () => {
             <div className="px-6 py-4 border-b border-white/5 bg-[#0f172a]/10 flex items-center gap-2">
               <Activity size={16} className="text-cyan-400" />
               <h3 className="text-xs font-bold font-display text-gray-300 uppercase tracking-wider">
-                Recent Entries (Last 50)
+                Recent Entries (Last 50) — Click any row for full details
               </h3>
             </div>
             <div className="overflow-x-auto">
@@ -1113,7 +1115,7 @@ export const Dashboard: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-white/5 text-gray-300">
                   {tablesData.recentTable.map((item, index) => (
-                    <tr key={index} className="hover:bg-white/2 transition-colors">
+                    <tr key={index} className="hover:bg-white/2 transition-colors cursor-pointer" onClick={() => setDrillRecord(item)} title="Click for full details">
                       <td className="py-3 px-4 text-gray-500">{item.date}</td>
                       <td className="py-3 px-3"><strong>{item.machineName}</strong></td>
                       <td className="py-3 px-3 text-gray-400">{item.machineType}</td>
@@ -1143,7 +1145,7 @@ export const Dashboard: React.FC = () => {
             <div className="px-6 py-4 border-b border-white/5 bg-[#0f172a]/10 flex items-center gap-2">
               <ShieldAlert size={16} className="text-red-500 animate-pulse" />
               <h3 className="text-xs font-bold font-display text-gray-300 uppercase tracking-wider">
-                Highest Downtime Events (Top 50)
+                Highest Downtime Events (Top 50) — Click any row for full details
               </h3>
             </div>
             <div className="overflow-x-auto">
@@ -1162,7 +1164,7 @@ export const Dashboard: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-white/5 text-gray-300">
                   {tablesData.topDownTable.map((item, index) => (
-                    <tr key={index} className="hover:bg-white/2 transition-colors">
+                    <tr key={index} className="hover:bg-white/2 transition-colors cursor-pointer" onClick={() => setDrillRecord(item)} title="Click for full details">
                       <td className="py-3 px-4 text-gray-500">{item.date}</td>
                       <td className="py-3 px-3"><strong>{item.machineName}</strong></td>
                       <td className="py-3 px-3 text-gray-400">{item.machineType}</td>
@@ -1186,6 +1188,65 @@ export const Dashboard: React.FC = () => {
           </div>
 
         </>
+      )}
+
+
+      {/* DRILL-DOWN DETAIL MODAL */}
+      {drillRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setDrillRecord(null)}>
+          <div className="glass-panel rounded-2xl w-full max-w-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="text-sm font-bold text-gray-100">Breakdown Entry Details</h3>
+                <p className="text-[10px] text-gray-500 mt-0.5 font-mono">{drillRecord.refId || drillRecord.breakdownNumber || '—'}</p>
+              </div>
+              <button onClick={() => setDrillRecord(null)} className="text-gray-400 hover:text-gray-200 cursor-pointer p-1">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              {[
+                ['Date', drillRecord.date],
+                ['Shift', drillRecord.shift],
+                ['Department / Machine Type', drillRecord.machineType || drillRecord.department],
+                ['Machine Name', drillRecord.machineName],
+                ['Unit / Section', drillRecord.unit || drillRecord.subAssembly || '—'],
+                ['Category', drillRecord.category],
+                ['Problem Type', drillRecord.problemType],
+                ['Time Start', drillRecord.timeStart || '—'],
+                ['Time End', drillRecord.timeEnd || '—'],
+                ['Duration (min)', drillRecord.minutes !== undefined ? `${drillRecord.minutes} min` : '—'],
+                ['Attended By', drillRecord.attendedBy || '—'],
+                ['Additional Team', drillRecord.additionalTeam || '—'],
+                ['Submitted By', drillRecord.submittedBy || '—'],
+                ['Spare Consumed', drillRecord.spareConsumed || '—'],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="bg-slate-900/40 rounded-lg p-3 border border-white/5">
+                  <div className="text-[9px] text-gray-500 uppercase tracking-wider font-semibold mb-1">{label}</div>
+                  <div className="text-gray-200 font-medium">{value || '—'}</div>
+                </div>
+              ))}
+              <div className="col-span-2 bg-slate-900/40 rounded-lg p-3 border border-white/5">
+                <div className="text-[9px] text-gray-500 uppercase tracking-wider font-semibold mb-1">Problem Description</div>
+                <div className="text-gray-200">{drillRecord.description || drillRecord.problemDescription || '—'}</div>
+              </div>
+              <div className="col-span-2 bg-slate-900/40 rounded-lg p-3 border border-white/5">
+                <div className="text-[9px] text-gray-500 uppercase tracking-wider font-semibold mb-1">Action Taken</div>
+                <div className="text-gray-200">{drillRecord.actionTaken || '—'}</div>
+              </div>
+              <div className="col-span-2 bg-slate-900/40 rounded-lg p-3 border border-white/5">
+                <div className="text-[9px] text-gray-500 uppercase tracking-wider font-semibold mb-1">Root Cause</div>
+                <div className="text-gray-200">{drillRecord.rootCause || '—'}</div>
+              </div>
+              {drillRecord.remarks && (
+                <div className="col-span-2 bg-slate-900/40 rounded-lg p-3 border border-white/5">
+                  <div className="text-[9px] text-gray-500 uppercase tracking-wider font-semibold mb-1">Remarks</div>
+                  <div className="text-gray-200">{drillRecord.remarks}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

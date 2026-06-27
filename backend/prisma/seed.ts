@@ -1,378 +1,402 @@
+/**
+ * seed.ts — Parksons CMMS Master Data Seed
+ * 
+ * Populates all master tables from Form.html / Code.gs reference data.
+ * Safe to run multiple times — uses upsert throughout.
+ * 
+ * Run: npm run seed
+ */
+
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
-// Default machine configurations from Code.gs
-const MACHINES_DEFAULT: Record<string, Record<string, string[]>> = {
-  "PRINTING": {
-    "PrintKBA1": ["Feeder","PU1","PU2","PU3","PU4","PU5","PU6","Coating","Uvlights / IR light","Delivery","Technotrans","Compressor"],
-    "PrintKBA2": ["Feeder","PU1","PU2","PU3","PU4","PU5","PU6","Coating","Uvlights / IR light","Delivery","Technotrans","Compressor"],
-    "PrintKBA3": ["Feeder","PU1","PU2","PU3","PU4","PU5","PU6","PU7","Coating","Uvlights / IR light","Delivery","Technotrans","Compressor"],
-    "HeidelbergCX1": ["Feeder","PU1","PU2","PU3","PU4","PU5","PU6","PU7","Coating","Uvlights / IR light","Delivery","Technotrans","Compressor"],
-    "HeidelbergCX2": ["Feeder","PU1","PU2","PU3","PU4","PU5","PU6","PU7","Coating","Uvlights / IR light","Delivery","Technotrans","Compressor"],
-    "Roland": ["Feeder","PU1","PU2","Coating","Uvlights / IR light","Delivery","Technotrans","Compressor"],
-    "GRAVIER": ["Feeder","PU1","Coating","Uvlights / IR light","Delivery","Compressor"],
-    "Albo": ["Comapctor","Turner","Blower"],
-    "UVcoater": ["Feeder","Infeedunit","Conveyor","Uvlights","Delivery","Coating unit"],
-    "Sheeter": ["Reelstand","Helicalcutter","Conveyor","Delivery","Suctionblower","Ductcollector"],
-    "CTP": ["Plateexposer","Plateprocessor"],
-    "Printingplant": ["Electricity Down","Compressor","Chiller water supply","Technotrans water","DG set"],
-    "Samplemaking": ["cuuting head","Travel motor","Bed","Compressor"]
+// ── MACHINE HIERARCHY (mirrors Form.html MACHINES object exactly) ──────────
+const MACHINES_DATA: Record<string, Record<string, string[]>> = {
+  PRINTING: {
+    PrintKBA1:     ["Feeder","PU1","PU2","PU3","PU4","PU5","PU6","Coating","Uvlights / IR light","Delivery","Technotrans","Compressor"],
+    PrintKBA2:     ["Feeder","PU1","PU2","PU3","PU4","PU5","PU6","Coating","Uvlights / IR light","Delivery","Technotrans","Compressor"],
+    PrintKBA3:     ["Feeder","PU1","PU2","PU3","PU4","PU5","PU6","PU7","Coating","Uvlights / IR light","Delivery","Technotrans","Compressor"],
+    HeidelbergCX1: ["Feeder","PU1","PU2","PU3","PU4","PU5","PU6","PU7","Coating","Uvlights / IR light","Delivery","Technotrans","Compressor"],
+    HeidelbergCX2: ["Feeder","PU1","PU2","PU3","PU4","PU5","PU6","PU7","Coating","Uvlights / IR light","Delivery","Technotrans","Compressor"],
+    Roland:        ["Feeder","PU1","PU2","Coating","Uvlights / IR light","Delivery","Technotrans","Compressor"],
+    GRAVIER:       ["Feeder","PU1","Coating","Uvlights / IR light","Delivery","Compressor"],
+    Albo:          ["Comapctor","Turner","Blower"],
+    UVcoater:      ["Feeder","Infeedunit","Conveyor","Uvlights","Delivery","Coating unit"],
+    Sheeter:       ["Reelstand","Helicalcutter","Conveyor","Delivery","Suctionblower","Ductcollector"],
+    CTP:           ["Plateexposer","Plateprocessor"],
+    Printingplant: ["Electricity Down","Compressor","Chiller water supply","Technotrans water","DG set"],
+    Samplemaking:  ["cuuting head","Travel motor","Bed","Compressor"],
   },
-  "CORRUGATION": {
-    "Champion": ["MillRollstand","Splicer","Singlefacer","Steamsupply","Feeder","Helicalcutter","Stacker"],
-    "BHSCORRU": ["MillRollstand","Splicer","Singlefacer","Steamsupply","Feeder","Helicalcutter","Stacker"],
-    "Lamify1Old": ["Sheetfeeder","Flutefeeder","Laminationunit","Belttransfer","Stacker"],
-    "Lamify2New": ["Sheetfeeder","Flutefeeder","Laminationunit","Belttransfer","Stacker"],
-    "Gluekitchen": ["Mixing tank","Cuastic tank","supply pump"],
-    "Nflute": ["MillRollstand","Splicer","Singlefacer","Steamsupply","Feeder","Helicalcutter"]
+  CORRUGATION: {
+    Champion:    ["MillRollstand","Splicer","Singlefacer","Steamsupply","Feeder","Helicalcutter","Stacker"],
+    BHSCORRU:    ["MillRollstand","Splicer","Singlefacer","Steamsupply","Feeder","Helicalcutter","Stacker"],
+    Lamify1Old:  ["Sheetfeeder","Flutefeeder","Laminationunit","Belttransfer","Stacker"],
+    Lamify2New:  ["Sheetfeeder","Flutefeeder","Laminationunit","Belttransfer","Stacker"],
+    Gluekitchen: ["Mixing tank","Cuastic tank","supply pump"],
+    Nflute:      ["MillRollstand","Splicer","Singlefacer","Steamsupply","Feeder","Helicalcutter"],
   },
-  "NFDIECUTTING": {
-    "Blanker1": ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
-    "Blanker2": ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
-    "BMFOIL": ["Feeder","Die platten","Delivery","Gripperbar","Foilstamping","Blanking"],
-    "BMAFOIL": ["Feeder","Die platten","Delivery","Gripperbar","Foilstamping","Blanking"],
-    "YOKO": ["Feeder","Die platten","Delivery","Gripperbar","Foilstamping","Blanking"],
-    "DIECUTTING8": ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
-    "NOVA1": ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
-    "NOVA2": ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
-    "NOVA5": ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
-    "NOVA6": ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
-    "Spanthera1": ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
-    "Spanthera2": ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"]
+  NFDIECUTTING: {
+    Blanker1:    ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
+    Blanker2:    ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
+    BMFOIL:      ["Feeder","Die platten","Delivery","Gripperbar","Foilstamping","Blanking"],
+    BMAFOIL:     ["Feeder","Die platten","Delivery","Gripperbar","Foilstamping","Blanking"],
+    YOKO:        ["Feeder","Die platten","Delivery","Gripperbar","Foilstamping","Blanking"],
+    DIECUTTING8: ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
+    NOVA1:       ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
+    NOVA2:       ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
+    NOVA5:       ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
+    NOVA6:       ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
+    Spanthera1:  ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
+    Spanthera2:  ["Feeder","Die platten","Delivery","Gripperbar","Stripping","Blanking"],
   },
-  "NFPASTING": {
-    "Alpina": ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer","Delivery"],
-    "Expertfold": ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer","Delivery"],
-    "Media68": ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer","Delivery"],
-    "VisionFold": ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer","Delivery"],
-    "Fuego": ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer","Delivery"],
-    "Mistral": ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer","Delivery"],
-    "Blankwiser": ["Feeder","Alingmentunit","Glueunit","Folder","Delivery"],
-    "Other": ["Airalunit"]
+  NFPASTING: {
+    Alpina:     ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer","Delivery"],
+    Expertfold: ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer","Delivery"],
+    Media68:    ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer","Delivery"],
+    VisionFold: ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer","Delivery"],
+    Fuego:      ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer","Delivery"],
+    Mistral:    ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer","Delivery"],
+    Blankwiser: ["Feeder","Alingmentunit","Glueunit","Folder","Delivery"],
+    Other:      ["Airalunit"],
   },
-  "LAMINATION": {
-    "YILI": ["Feeder","Heating roller","Pressing","Knifecutter","Delivery"],
-    "SLITTER": ["Unwinder","Rewinder","Cutter","Crane motor"],
-    "PERFECTA": ["Feedingtable","CuttingKnife","Pressing","BackGauge","HydrualicPump","MainDriveClutch"],
-    "FAIDA": ["Feedingtable","CuttingKnife","Pressing","BackGauge","HydrualicPump","MainDriveClutch"]
+  LAMINATION: {
+    YILI:     ["Feeder","Heating roller","Pressing","Knifecutter","Delivery"],
+    SLITTER:  ["Unwinder","Rewinder","Cutter","Crane motor"],
+    PERFECTA: ["Feedingtable","CuttingKnife","Pressing","BackGauge","HydrualicPump","MainDriveClutch"],
+    FAIDA:    ["Feedingtable","CuttingKnife","Pressing","BackGauge","HydrualicPump","MainDriveClutch"],
   },
-  "FLDIECUTTING": {
-    "NOVACUT3": ["Feeder","Dieplatten","Delivery","Gripperbar","Stripping"],
-    "NOVACUT4": ["Feeder","Dieplatten","Delivery","Gripperbar","Stripping"],
-    "SP102Diecut": ["Feeder","Dieplatten","Delivery","Gripperbar","Stripping"],
-    "SP102": ["Feeder","Dieplatten","Delivery","Gripperbar","Stripping"]
+  FLDIECUTTING: {
+    NOVACUT3:    ["Feeder","Dieplatten","Delivery","Gripperbar","Stripping"],
+    NOVACUT4:    ["Feeder","Dieplatten","Delivery","Gripperbar","Stripping"],
+    SP102Diecut: ["Feeder","Dieplatten","Delivery","Gripperbar","Stripping"],
+    SP102:       ["Feeder","Dieplatten","Delivery","Gripperbar","Stripping"],
   },
-  "FLPASTING": {
-    "LILA1": ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer"],
-    "LILA2": ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer"],
-    "PAKTEK1": ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer"],
-    "PAKTEK2": ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer"],
-    "LaminaGlueline": ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer"]
+  FLPASTING: {
+    LILA1:          ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer"],
+    LILA2:          ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer"],
+    PAKTEK1:        ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer"],
+    PAKTEK2:        ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer"],
+    LaminaGlueline: ["Feeder","Alingmentunit","Prebreaker","Glueunit","HSSsystem","Folder","Transfer"],
   },
-  "HANDPUNCING": {
-    "ACME": ["Maindriveclutch","DiePlatten"],
-    "BHARAT": ["Maindriveclutch","DiePlatten"],
-    "HEIDO": ["Maindriveclutch","DiePlatten"],
-    "Robus": ["Sensor"],
-    "Autostrapping": ["Strapping head","Heater"]
+  HANDPUNCING: {
+    ACME:          ["Maindriveclutch","DiePlatten"],
+    BHARAT:        ["Maindriveclutch","DiePlatten"],
+    HEIDO:         ["Maindriveclutch","DiePlatten"],
+    Robus:         ["Sensor"],
+    Autostrapping: ["Strapping head","Heater"],
   },
-  "LIQUIDLINE": {
-    "Fortuna": ["Feeder","Blower","Scaving","Chiller","Burner","Folder","Transfer","Metaldetector","Tapping","Register unit"],
-    "Sheeter": ["Reelstand","Helicalcutter","Conveyor","Delivery","Suctionblower","Ductcollector"],
-    "Slitter": ["Unwinder","Rewinder","Cutter"],
-    "Blanker1": ["Feeder","Die platten","Delivery","Gripperbar","Stripping"]
+  LIQUIDLINE: {
+    Fortuna:  ["Feeder","Blower","Scaving","Chiller","Burner","Folder","Transfer","Metaldetector","Tapping","Register unit"],
+    Sheeter:  ["Reelstand","Helicalcutter","Conveyor","Delivery","Suctionblower","Ductcollector"],
+    Slitter:  ["Unwinder","Rewinder","Cutter"],
+    Blanker1: ["Feeder","Die platten","Delivery","Gripperbar","Stripping"],
   },
-  "OTHERS": {
-    "WindowPatching1": ["Machine"],"WindowPatching2": ["Machine"],
-    "OfflineBlanker": ["Machine"],"BatchCounter": ["Machine"],
-    "AutoPrintSorting1": ["Machine"],"AutoPrintSorting2": ["Machine"],
-    "PokerCard": ["Machine"],"LablePasting1": ["Machine"],
-    "LablePasting2": ["Machine"],"LablePasting3": ["Machine"],
-    "InkmatchingMixt1": ["Machine"],"InkmatchingMixt2": ["Machine"]
+  OTHERS: {
+    WindowPatching1:   ["Machine"],
+    WindowPatching2:   ["Machine"],
+    OfflineBlanker:    ["Machine"],
+    BatchCounter:      ["Machine"],
+    AutoPrintSorting1: ["Machine"],
+    AutoPrintSorting2: ["Machine"],
+    PokerCard:         ["Machine"],
+    LablePasting1:     ["Machine"],
+    LablePasting2:     ["Machine"],
+    Boilers:           ["Machine"],
+    CompressorUtil:    ["Machine"],
+    WaterChiller:      ["Machine"],
   },
-  "Convertingplant": {
-    "Compressor": ["Main compressor","Backup compressor"],
-    "Electricitydown": ["Main supply","DG Set","Transformer"]
-  },
-  "Printingplant": {
-    "Utility": ["Electricity Down","Compressor","Chiller water supply","Technotrans water","DG set"],
-    "Electricitydown": ["Main supply","DG Set"],
-    "Compressor": ["Main compressor","Backup compressor"]
-  },
-  "SCRAP": {
-    "ScrapCutting1": ["Machine"],"ScrapCutting2": ["Machine"],"ScrapCutting3": ["Machine"]
-  }
 };
 
+// ── TECHNICIANS (from Form.html) ──────────────────────────────────────────
+const TECHNICIANS_DATA = [
+  "Ashish","Shivaji","Sandip","Sharad","Vikas","Ravi",
+  "Sachine","Krishna","Dattaram","Akshay","PM team",
+  "Baba","Sangram","Ramdas","Chandan","YogeshK",
+  "GaneshS","KedarP","YogeshP","Supervisor",
+];
+
+// ── CATEGORIES (from Form.html) ───────────────────────────────────────────
+const CATEGORIES_DATA = [
+  "Breakdown","Predictive","Planning","Preventive",
+  "Corrective","Operational","Shift Start up",
+];
+
+// ── PROBLEM TYPES (from Form.html) ────────────────────────────────────────
+const PROBLEM_TYPES_DATA = [
+  "Electrical","Mechanical","Mech/Elect","Pneumatic air","Utility",
+];
+
+// ── ROOT CAUSES ───────────────────────────────────────────────────────────
+const ROOT_CAUSES_DATA = [
+  "Wear and Tear","Lack of Lubrication","Operator Error",
+  "Material Defect","Design Issue","Electrical Fault",
+  "Mechanical Failure","Pneumatic Failure","Utility Failure","Unknown",
+];
+
+// ── ACTION TAKEN ──────────────────────────────────────────────────────────
+const ACTION_TAKEN_DATA = [
+  "Replaced","Repaired","Adjusted","Cleaned","Lubricated",
+  "Reset","Tightened","Calibrated","Overhauled","Monitoring",
+];
+
 async function main() {
-  console.log("Starting database seeding...");
+  console.log('🌱 Starting Parksons CMMS master data seed...\n');
 
-  // 1. ROLES
-  const roles = [
-    { name: "Super Admin", code: "SUPER_ADMIN", description: "Full system control and administration" },
-    { name: "Plant Admin", code: "PLANT_ADMIN", description: "Admin access localized to a single plant" },
-    { name: "Manager", code: "MANAGER", description: "Workflow approval and analytics viewing" },
-    { name: "Supervisor", code: "SUPERVISOR", description: "Log approvals, PM scheduling, and dashboard views" },
-    { name: "Engineer", code: "ENGINEER", description: "Update breakdown logs, assign tasks, view status" },
-    { name: "Technician", code: "TECHNICIAN", description: "Create breakdown entries, complete PM tasks" },
-    { name: "Viewer", code: "VIEWER", description: "Read-only access to dashboards and KPIs" }
+  // ── 1. PLANT ────────────────────────────────────────────────────────────
+  console.log('📍 Seeding Plants...');
+  const plants = [
+    { name: 'Daman Plant',  code: 'DAMAN',  address: 'Daman, India' },
+    { name: 'Pune Plant',   code: 'PUNE',   address: 'Pune, India' },
+    { name: 'Chakan Plant', code: 'CHAKAN', address: 'Chakan, Pune, India' },
   ];
+  const plantMap: Record<string, string> = {};
+  for (const p of plants) {
+    const plant = await prisma.plant.upsert({
+      where: { code: p.code },
+      update: { name: p.name, address: p.address },
+      create: p,
+    });
+    plantMap[p.code] = plant.id;
+    console.log(`  ✓ Plant: ${p.name}`);
+  }
+  const damanPlantId = plantMap['DAMAN'];
 
-  const seededRoles: Record<string, any> = {};
+  // ── 2. ROLES ─────────────────────────────────────────────────────────────
+  console.log('\n👤 Seeding Roles...');
+  const roles = [
+    { name: 'Super Admin', code: 'superadmin', description: 'Full system access' },
+    { name: 'Admin',       code: 'admin',       description: 'Administrative access' },
+    { name: 'Manager',     code: 'manager',     description: 'Management access' },
+    { name: 'Supervisor',  code: 'supervisor',  description: 'Supervisory access' },
+    { name: 'Technician',  code: 'technician',  description: 'Field technician access' },
+    { name: 'Viewer',      code: 'viewer',      description: 'Read-only access' },
+  ];
+  const roleMap: Record<string, string> = {};
   for (const r of roles) {
     const role = await prisma.role.upsert({
       where: { code: r.code },
       update: { name: r.name, description: r.description },
-      create: r
+      create: r,
     });
-    seededRoles[r.code] = role;
-  }
-  console.log("Seeded Roles.");
-
-  // 2. PERMISSIONS
-  const permissions = [
-    // Users Module
-    { name: "View Users", code: "USER_VIEW", module: "User Management", action: "READ" },
-    { name: "Manage Users", code: "USER_MANAGE", module: "User Management", action: "CREATE" },
-    // Masters Module
-    { name: "View Masters", code: "MASTER_VIEW", module: "Master Tables", action: "READ" },
-    { name: "Manage Masters", code: "MASTER_MANAGE", module: "Master Tables", action: "CREATE" },
-    // Machine Master
-    { name: "View Machines", code: "MACHINE_VIEW", module: "Machine Master", action: "READ" },
-    { name: "Manage Machines", code: "MACHINE_MANAGE", module: "Machine Master", action: "CREATE" },
-    // Breakdown Module
-    { name: "View Breakdowns", code: "BREAKDOWN_VIEW", module: "Breakdown Management", action: "READ" },
-    { name: "Create Breakdown", code: "BREAKDOWN_CREATE", module: "Breakdown Management", action: "CREATE" },
-    { name: "Review Breakdown", code: "BREAKDOWN_REVIEW", module: "Breakdown Management", action: "UPDATE" },
-    { name: "Approve Breakdown", code: "BREAKDOWN_APPROVE", module: "Breakdown Management", action: "UPDATE" },
-    // PM Module
-    { name: "View PM Schedule", code: "PM_VIEW", module: "PM Management", action: "READ" },
-    { name: "Manage PM Tasks", code: "PM_MANAGE", module: "PM Management", action: "CREATE" },
-    { name: "Execute PM Tasks", code: "PM_EXECUTE", module: "PM Management", action: "UPDATE" },
-    // Dashboard & Reports
-    { name: "View Dashboard", code: "DASHBOARD_VIEW", module: "Dashboard & KPI Engine", action: "READ" },
-    { name: "Export Reports", code: "REPORTS_EXPORT", module: "Reports", action: "READ" },
-    // Audit Logs
-    { name: "View Audit Logs", code: "AUDIT_VIEW", module: "Audit Logs", action: "READ" }
-  ];
-
-  const seededPermissions: Record<string, any> = {};
-  for (const p of permissions) {
-    const perm = await prisma.permission.upsert({
-      where: { code: p.code },
-      update: { name: p.name, module: p.module, action: p.action },
-      create: p
-    });
-    seededPermissions[p.code] = perm;
-  }
-  console.log("Seeded Permissions.");
-
-  // Map permissions to SUPER_ADMIN & SUPERVISOR
-  const superAdminRole = seededRoles["SUPER_ADMIN"];
-  for (const perm of Object.values(seededPermissions)) {
-    await prisma.rolePermission.upsert({
-      where: { roleId_permissionId: { roleId: superAdminRole.id, permissionId: perm.id } },
-      update: {},
-      create: { roleId: superAdminRole.id, permissionId: perm.id }
-    });
+    roleMap[r.code] = role.id;
+    console.log(`  ✓ Role: ${r.name}`);
   }
 
-  const supervisorRole = seededRoles["SUPERVISOR"];
-  const supervisorPerms = ["MACHINE_VIEW", "BREAKDOWN_VIEW", "BREAKDOWN_CREATE", "BREAKDOWN_REVIEW", "PM_VIEW", "PM_EXECUTE", "DASHBOARD_VIEW", "REPORTS_EXPORT"];
-  for (const code of supervisorPerms) {
-    const perm = seededPermissions[code];
-    if (perm) {
-      await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: supervisorRole.id, permissionId: perm.id } },
-        update: {},
-        create: { roleId: supervisorRole.id, permissionId: perm.id }
-      });
-    }
-  }
-  console.log("Mapped Role Permissions.");
-
-  // 3. PLANT
-  const plant = await prisma.plant.upsert({
-    where: { code: "DAMAN" },
-    update: { name: "Parksons Daman Plant", address: "Daman, India" },
-    create: { name: "Parksons Daman Plant", code: "DAMAN", address: "Daman, India" }
-  });
-  console.log(`Seeded Plant: ${plant.name}`);
-
-  // 4. USERS (Super Admin: YogeshK, Supervisor: default)
-  const saltRounds = 10;
-  const hashPassword = await bcrypt.hash("PKS@2026", saltRounds);
-
-  const superUser = await prisma.user.upsert({
-    where: { email: "yogeshkp85@gmail.com" },
-    update: { passwordHash: hashPassword, name: "YogeshK", roleId: superAdminRole.id, plantId: plant.id },
+  // ── 3. DEFAULT SUPERADMIN USER ───────────────────────────────────────────
+  console.log('\n🔐 Seeding default admin user...');
+  const passwordHash = await bcrypt.hash('Admin@123', 10);
+  await prisma.user.upsert({
+    where: { email: 'admin@parksons.com' },
+    update: {},
     create: {
-      name: "YogeshK",
-      email: "yogeshkp85@gmail.com",
-      passwordHash: hashPassword,
-      roleId: superAdminRole.id,
-      plantId: plant.id
-    }
+      name: 'System Admin',
+      email: 'admin@parksons.com',
+      passwordHash,
+      roleId: roleMap['superadmin'],
+      plantId: damanPlantId,
+      isActive: true,
+    },
   });
-  console.log(`Seeded User: ${superUser.name} (${superUser.email})`);
+  console.log('  ✓ admin@parksons.com / Admin@123');
 
-  // 5. SHIFT MASTER
+  // ── 4. SHIFTS ────────────────────────────────────────────────────────────
+  console.log('\n🕐 Seeding Shifts...');
   const shifts = [
-    { name: "First Shift", code: "SHIFT_1", startTime: "07:00:00", endTime: "15:00:00" },
-    { name: "Second Shift", code: "SHIFT_2", startTime: "15:00:00", endTime: "23:00:00" },
-    { name: "Third Shift", code: "SHIFT_3", startTime: "23:00:00", endTime: "07:00:00" }
+    { name: 'First Shift',  code: 'S1', startTime: '07:00', endTime: '14:59' },
+    { name: 'Second Shift', code: 'S2', startTime: '15:00', endTime: '22:59' },
+    { name: 'Third Shift',  code: 'S3', startTime: '23:00', endTime: '06:59' },
   ];
   for (const s of shifts) {
     await prisma.shiftMaster.upsert({
       where: { code: s.code },
       update: { name: s.name, startTime: s.startTime, endTime: s.endTime },
-      create: s
+      create: s,
     });
+    console.log(`  ✓ ${s.name} (${s.startTime}–${s.endTime})`);
   }
-  console.log("Seeded Shift Masters.");
 
-  // 6. PM FREQUENCY MASTER
-  const pmFreqs = [
-    { name: "Daily", code: "DAILY", intervalDays: 1 },
-    { name: "Weekly", code: "WEEKLY", intervalDays: 7 },
-    { name: "Monthly", code: "MONTHLY", intervalDays: 30 },
-    { name: "Quarterly", code: "QUARTERLY", intervalDays: 91 },
-    { name: "Half Yearly", code: "HALF_YEARLY", intervalDays: 182 },
-    { name: "Yearly", code: "YEARLY", intervalDays: 365 }
+  // ── 5. FINANCIAL YEARS ───────────────────────────────────────────────────
+  console.log('\n📅 Seeding Financial Years...');
+  const fyears = [
+    { code: '2022-23', label: 'FY 2022-23', start: '2022-04-01', end: '2023-03-31', current: false, order: 1 },
+    { code: '2023-24', label: 'FY 2023-24', start: '2023-04-01', end: '2024-03-31', current: false, order: 2 },
+    { code: '2024-25', label: 'FY 2024-25', start: '2024-04-01', end: '2025-03-31', current: false, order: 3 },
+    { code: '2025-26', label: 'FY 2025-26', start: '2025-04-01', end: '2026-03-31', current: true,  order: 4 },
+    { code: '2026-27', label: 'FY 2026-27', start: '2026-04-01', end: '2027-03-31', current: false, order: 5 },
   ];
-  for (const pf of pmFreqs) {
-    await prisma.pmFrequencyMaster.upsert({
-      where: { code: pf.code },
-      update: { name: pf.name, intervalDays: pf.intervalDays },
-      create: pf
+  for (const fy of fyears) {
+    await (prisma as any).financialYear.upsert({
+      where: { code: fy.code },
+      update: { label: fy.label, isCurrent: fy.current, displayOrder: fy.order },
+      create: {
+        code: fy.code, label: fy.label,
+        startDate: new Date(fy.start), endDate: new Date(fy.end),
+        isCurrent: fy.current, displayOrder: fy.order,
+      },
     });
-  }
-  console.log("Seeded PM Frequency Masters.");
-
-  // 7. PROBLEM & CATEGORY MASTERS
-  const problemCats = ["Electrical", "Mechanical", "Pneumatic", "Hydraulic", "Utility", "Process", "Others"];
-  for (const pc of problemCats) {
-    await prisma.problemCategory.upsert({
-      where: { name: pc },
-      update: {},
-      create: { name: pc }
-    });
+    console.log(`  ✓ ${fy.label}${fy.current ? ' (current)' : ''}`);
   }
 
-  const breakdownCats = ["Breakdown", "Planned Maintenance (PM)", "Tooling Change", "Utility Downtime", "Others"];
-  for (const bc of breakdownCats) {
+  // ── 6. BREAKDOWN CATEGORIES ──────────────────────────────────────────────
+  console.log('\n🏷️  Seeding Breakdown Categories...');
+  for (const name of CATEGORIES_DATA) {
     await prisma.breakdownCategory.upsert({
-      where: { name: bc },
+      where: { name },
       update: {},
-      create: { name: bc }
+      create: { name },
     });
+    console.log(`  ✓ ${name}`);
   }
 
-  const rootCauses = ["Normal Wear & Tear", "Lack of Lubrication", "Operator Negligence", "Design Defect", "Material Fatigue", "External Factor", "Utility Trip"];
-  for (const rc of rootCauses) {
+  // ── 7. PROBLEM CATEGORIES (TYPES) ────────────────────────────────────────
+  console.log('\n⚡ Seeding Problem Types...');
+  for (const name of PROBLEM_TYPES_DATA) {
+    await prisma.problemCategory.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+    console.log(`  ✓ ${name}`);
+  }
+
+  // ── 8. ROOT CAUSE CATEGORIES ─────────────────────────────────────────────
+  console.log('\n🔍 Seeding Root Cause Categories...');
+  for (const name of ROOT_CAUSES_DATA) {
     await prisma.rootCauseCategory.upsert({
-      where: { name: rc },
+      where: { name },
       update: {},
-      create: { name: rc }
+      create: { name },
     });
+    console.log(`  ✓ ${name}`);
   }
 
-  const actionsTaken = ["Part Replaced", "Component Calibrated", "Temporary Repair", "Overhauled", "Lubricated & Cleaned", "Wiring Fixed", "Reset System"];
-  for (const at of actionsTaken) {
+  // ── 9. ACTION TAKEN CATEGORIES ───────────────────────────────────────────
+  console.log('\n🔧 Seeding Action Taken Categories...');
+  for (const name of ACTION_TAKEN_DATA) {
     await prisma.actionTakenCategory.upsert({
-      where: { name: at },
+      where: { name },
       update: {},
-      create: { name: at }
+      create: { name },
     });
+    console.log(`  ✓ ${name}`);
   }
-  console.log("Seeded Breakdown and Problem Categories.");
 
-  // 8. MACHINE CATEGORIES, DEPARTMENTS, SECTIONS, MACHINES, & UNITS
-  for (const categoryCode of Object.keys(MACHINES_DEFAULT)) {
-    // A. Machine Category
-    const mc = await prisma.machineCategory.upsert({
-      where: { code: categoryCode },
-      update: { name: categoryCode },
-      create: { name: categoryCode, code: categoryCode }
+  // ── 10. TECHNICIANS ──────────────────────────────────────────────────────
+  console.log('\n👷 Seeding Technicians...');
+  for (let i = 0; i < TECHNICIANS_DATA.length; i++) {
+    const name = TECHNICIANS_DATA[i];
+    const code = `TECH-${String(i + 1).padStart(3, '0')}`;
+    await (prisma as any).technician.upsert({
+      where: { code },
+      update: { name, displayOrder: i + 1 },
+      create: { code, name, displayOrder: i + 1 },
     });
+    console.log(`  ✓ ${code}: ${name}`);
+  }
 
-    // B. Department (matches Machine Type in the old system)
+  // ── 11. PM FREQUENCIES ───────────────────────────────────────────────────
+  console.log('\n🔄 Seeding PM Frequencies...');
+  const pmFrequencies = [
+    { code: 'DAILY',      name: 'Daily',        intervalDays: 1   },
+    { code: 'WEEKLY',     name: 'Weekly',        intervalDays: 7   },
+    { code: 'FORTNIGHTLY',name: 'Fortnightly',   intervalDays: 14  },
+    { code: 'MONTHLY',    name: 'Monthly',       intervalDays: 30  },
+    { code: 'QUARTERLY',  name: 'Quarterly',     intervalDays: 90  },
+    { code: 'HALFYEARLY', name: 'Half Yearly',   intervalDays: 180 },
+    { code: 'YEARLY',     name: 'Yearly',        intervalDays: 365 },
+  ];
+  for (const f of pmFrequencies) {
+    await prisma.pmFrequencyMaster.upsert({
+      where: { code: f.code },
+      update: { name: f.name, intervalDays: f.intervalDays },
+      create: f,
+    });
+    console.log(`  ✓ ${f.name} (every ${f.intervalDays} days)`);
+  }
+
+  // ── 12. MACHINE HIERARCHY ────────────────────────────────────────────────
+  console.log('\n🏭 Seeding Machine Hierarchy (Dept → Machine → Units)...');
+  let deptOrder = 0;
+  for (const [deptName, machines] of Object.entries(MACHINES_DATA)) {
+    deptOrder++;
+
+    // Department
     const dept = await prisma.department.upsert({
-      where: { plantId_code: { plantId: plant.id, code: categoryCode } },
-      update: { name: `${categoryCode.replace("NF", "NF ").replace("FL", "FL ")} Department` },
-      create: {
-        name: `${categoryCode.replace("NF", "NF ").replace("FL", "FL ")} Department`,
-        code: categoryCode,
-        plantId: plant.id
-      }
+      where: { plantId_code: { plantId: damanPlantId, code: deptName } },
+      update: { name: deptName },
+      create: { name: deptName, code: deptName, plantId: damanPlantId },
     });
 
-    // C. Section (Default section under department)
+    // Section (1 section per department matching GAS structure)
     const section = await prisma.section.upsert({
-      where: { departmentId_code: { departmentId: dept.id, code: `${categoryCode}_SEC` } },
-      update: { name: `${dept.name} Section` },
-      create: {
-        name: `${dept.name} Section`,
-        code: `${categoryCode}_SEC`,
-        departmentId: dept.id
-      }
+      where: { departmentId_code: { departmentId: dept.id, code: `${deptName}-SEC` } },
+      update: { name: `${deptName} Section` },
+      create: { name: `${deptName} Section`, code: `${deptName}-SEC`, departmentId: dept.id },
     });
 
-    // D. Machines & Subassemblies
-    const machinesMap = MACHINES_DEFAULT[categoryCode];
-    for (const machineId of Object.keys(machinesMap)) {
-      // Create Machine
+    // Machine Category (maps to MachineCategory in schema)
+    const category = await prisma.machineCategory.upsert({
+      where: { code: deptName },
+      update: { name: deptName },
+      create: { name: deptName, code: deptName },
+    });
+
+    let machineOrder = 0;
+    for (const [machineName, units] of Object.entries(machines)) {
+      machineOrder++;
+      const machineCode = `${deptName.substring(0, 4)}-${machineName.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8).toUpperCase()}`;
+
+      // Machine
       const machine = await prisma.machine.upsert({
-        where: { machineId: machineId },
-        update: { name: machineId, machineCategoryId: mc.id, sectionId: section.id },
+        where: { machineId: machineCode },
+        update: { name: machineName },
         create: {
-          machineId: machineId,
-          name: machineId,
-          machineCategoryId: mc.id,
+          machineId: machineCode,
+          name: machineName,
+          machineCategoryId: category.id,
           sectionId: section.id,
-          status: "ACTIVE",
-          criticality: "MEDIUM"
-        }
+          status: 'ACTIVE',
+          criticality: 'MEDIUM',
+          isSubAssembly: false,
+        },
       });
 
-      // Create Units as Machine Subassemblies
-      const subParts = machinesMap[machineId];
-      for (const partName of subParts) {
-        // Create SubAssembly for the machine
-        const subAssembly = await prisma.subAssembly.create({
-          data: {
-            machineId: machine.id,
-            name: partName,
-            description: `Sub assembly unit: ${partName}`
-          }
+      // Sub-assemblies (units)
+      for (const unitName of units) {
+        const existingUnit = await prisma.subAssembly.findFirst({
+          where: { machineId: machine.id, name: unitName },
         });
-
-        // Also seed unit under the section (for breakdown mapping compatibility)
-        const unitCode = partName.toUpperCase().replace(/\s+/g, '_').substring(0, 45);
-        await prisma.unit.upsert({
-          where: { sectionId_code: { sectionId: section.id, code: `${machineId}_${unitCode}` } },
-          update: { name: partName },
-          create: {
-            name: partName,
-            code: `${machineId}_${unitCode}`,
-            sectionId: section.id
-          }
-        });
+        if (!existingUnit) {
+          await prisma.subAssembly.create({
+            data: { machineId: machine.id, name: unitName },
+          });
+        }
       }
     }
+    console.log(`  ✓ ${deptName}: ${Object.keys(machines).length} machines`);
   }
 
-  console.log("Seeded Machine Categories, Departments, Sections, Machines, SubAssemblies and Units.");
-  console.log("Database seeding completed successfully!");
+  console.log('\n✅ Seed complete!');
+  console.log('─────────────────────────────────────────');
+  console.log(`  Plants:              ${plants.length}`);
+  console.log(`  Roles:               ${roles.length}`);
+  console.log(`  Shifts:              ${shifts.length}`);
+  console.log(`  Financial Years:     ${fyears.length}`);
+  console.log(`  Categories:          ${CATEGORIES_DATA.length}`);
+  console.log(`  Problem Types:       ${PROBLEM_TYPES_DATA.length}`);
+  console.log(`  Root Causes:         ${ROOT_CAUSES_DATA.length}`);
+  console.log(`  Action Taken:        ${ACTION_TAKEN_DATA.length}`);
+  console.log(`  Technicians:         ${TECHNICIANS_DATA.length}`);
+  console.log(`  PM Frequencies:      ${pmFrequencies.length}`);
+  console.log(`  Departments:         ${Object.keys(MACHINES_DATA).length}`);
+  const totalMachines = Object.values(MACHINES_DATA).reduce((s, m) => s + Object.keys(m).length, 0);
+  console.log(`  Machines:            ${totalMachines}`);
+  const totalUnits = Object.values(MACHINES_DATA).reduce((s, m) => s + Object.values(m).reduce((ss, u) => ss + u.length, 0), 0);
+  console.log(`  Machine Units:       ${totalUnits}`);
 }
 
 main()
-  .catch((e) => {
-    console.error("Error seeding database:", e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch((e) => { console.error('❌ Seed failed:', e); process.exit(1); })
+  .finally(async () => { await prisma.$disconnect(); });
