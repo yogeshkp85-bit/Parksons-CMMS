@@ -9,11 +9,11 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000', // Backend runs on port 5000
+        target: 'http://localhost:3001', // Backend runs on port 3001
         changeOrigin: true
       },
       '/socket.io': {
-        target: 'http://localhost:5000', // Backend runs on port 5000
+        target: 'http://localhost:3001', // Backend runs on port 3001
         changeOrigin: true,
         ws: true
       }

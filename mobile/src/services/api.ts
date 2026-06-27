@@ -69,6 +69,7 @@ api.interceptors.request.use(
   async (config) => {
     const customIp = await getStoredServerIp();
     config.baseURL = getApiUrl(customIp || undefined);
+    console.log(`[API Request Interceptor] Sending to: ${config.baseURL}${config.url}`, config.data);
 
     const token = await getStoredToken();
     if (token) {
@@ -77,6 +78,7 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
+    console.error('[API Request Interceptor] Request error:', error);
     return Promise.reject(error);
   }
 );

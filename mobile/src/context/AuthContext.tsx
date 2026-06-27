@@ -95,13 +95,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setServerIp(ip);
       }
       
+      console.log(`[AuthContext Login] Attempting login. Email: ${email}, Server IP: ${ip || serverIp}`);
       const response = await api.post('/auth/login', { email, password });
+      console.log('[AuthContext Login] Success response:', response.data);
       const { token, user: userData } = response.data.data;
       
       await storeToken(token);
       setUser(userData);
       setIsAuthenticated(true);
     } catch (error: any) {
+      console.error('[AuthContext Login] Error object:', error);
+      if (error.response) {
+        console.error('[AuthContext Login] Response data:', error.response.data);
+        console.error('[AuthContext Login] Response status:', error.response.status);
+      }
       const msg = error.response?.data?.message || 'Login failed';
       throw new Error(msg);
     } finally {

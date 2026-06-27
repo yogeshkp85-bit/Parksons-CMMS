@@ -13,6 +13,7 @@ interface User {
   phone?: string;
   role: Role;
   plantId: string | null;
+  permissions?: any;
 }
 
 interface AuthContextType {
@@ -42,57 +43,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [accessToken, setAccessTokenState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const mapLevelToRoleAndPermissions = (level: string) => {
+  const mapLevelToRoleAndPermissions = (level: string, dynamicPerms?: any) => {
     const normalized = String(level || '').trim().toLowerCase().replace('_', '');
     
     let role = { name: 'Viewer', code: 'viewer' };
-    let permissions: string[] = ['Dashboard'];
-
     if (normalized === 'superadmin') {
       role = { name: 'Super Admin', code: 'superadmin' };
-      permissions = ['Dashboard', 'Create', 'Edit', 'Delete', 'Approve', 'Reports', 'Masters', 'Users', 'PreventiveMaintenance'];
     } else if (normalized === 'admin') {
       role = { name: 'Admin', code: 'admin' };
-      permissions = ['Dashboard', 'Create', 'Edit', 'Delete', 'Approve', 'Reports', 'Masters', 'Users', 'PreventiveMaintenance'];
     } else if (normalized === 'manager') {
       role = { name: 'Manager', code: 'manager' };
-      permissions = ['Dashboard', 'Approve', 'Reports', 'PreventiveMaintenance'];
     } else if (normalized === 'supervisor') {
       role = { name: 'Supervisor', code: 'supervisor' };
-      permissions = ['Dashboard', 'Create', 'Edit', 'Approve', 'Reports', 'PreventiveMaintenance'];
     } else if (normalized === 'technician') {
       role = { name: 'Technician', code: 'technician' };
-      permissions = ['Dashboard', 'Create', 'PreventiveMaintenance'];
-    } else {
-      role = { name: 'Viewer', code: 'viewer' };
-      permissions = ['Dashboard', 'PreventiveMaintenance'];
     }
 
-    return { role, permissions };
+    let permissionsList: string[] = [];
+    if (normalized === 'superadmin') {
+      permissionsList = ['Dashboard', 'Create', 'Edit', 'Delete', 'Approve', 'Reports', 'Masters', 'Users', 'PreventiveMaintenance'];
+    } else if (dynamicPerms && typeof dynamicPerms === 'object') {
+      if ((dynamicPerms['Dashboard'] || []).includes('View')) permissionsList.push('Dashboard');
+      if ((dynamicPerms['Breakdown'] || []).includes('Create')) permissionsList.push('Create');
+      if ((dynamicPerms['Breakdown'] || []).includes('Edit')) permissionsList.push('Edit');
+      if ((dynamicPerms['Breakdown'] || []).includes('Delete')) permissionsList.push('Delete');
+      if ((dynamicPerms['Approval Queue'] || []).includes('Approve')) permissionsList.push('Approve');
+      if ((dynamicPerms['Reports'] || []).includes('View')) permissionsList.push('Reports');
+      if ((dynamicPerms['Master Setup'] || []).includes('View')) permissionsList.push('Masters');
+      if ((dynamicPerms['User Management'] || []).includes('View')) permissionsList.push('Users');
+      if ((dynamicPerms['Preventive Maintenance'] || []).includes('View')) permissionsList.push('PreventiveMaintenance');
+    } else {
+      // Legacy presets fallback if no dynamic permissions matrix is defined
+      if (normalized === 'admin') {
+        permissionsList = ['Dashboard', 'Create', 'Edit', 'Delete', 'Approve', 'Reports', 'Masters', 'Users', 'PreventiveMaintenance'];
+      } else if (normalized === 'manager') {
+        permissionsList = ['Dashboard', 'Approve', 'Reports', 'PreventiveMaintenance'];
+      } else if (normalized === 'supervisor') {
+        permissionsList = ['Dashboard', 'Create', 'Edit', 'Approve', 'Reports', 'PreventiveMaintenance'];
+      } else if (normalized === 'technician') {
+        permissionsList = ['Dashboard', 'Create', 'PreventiveMaintenance'];
+      } else {
+        permissionsList = ['Dashboard', 'PreventiveMaintenance'];
+      }
+    }
+
+    return { role, permissions: permissionsList };
   };
 
   const handleLogoutCleanup = () => {
     localStorage.removeItem('cmms_user');
-    localStorage.removeItem('cmms_token'); // Legacy key - remove if present
+    localStorage.removeItem('cmms_token'); 
     setAccessToken(null);
     setAccessTokenState(null);
     setUser(null);
     setPermissions([]);
   };
 
-  // Restore user profile from localStorage on mount.
-  // Access token is NOT stored in localStorage (XSS protection).
-  // On page refresh, user profile is restored for UI, but API calls
-  // will fail until token is refreshed via /auth/refresh endpoint.
   const checkSession = async () => {
     try {
       const storedUser = localStorage.getItem('cmms_user');
       if (storedUser) {
         const parsedUser = JSON.parse(storedUser);
-        const mapped = mapLevelToRoleAndPermissions(parsedUser.role?.code || 'viewer');
+        const mapped = mapLevelToRoleAndPermissions(parsedUser.role?.code || 'viewer', parsedUser.permissions);
         setUser(parsedUser);
         setPermissions(mapped.permissions);
-        // Attempt to refresh access token via httpOnly cookie
         try {
           const refreshRes = await api.post('/auth/refresh');
           if (refreshRes.data?.data?.token) {
@@ -100,7 +114,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setAccessTokenState(refreshRes.data.data.token);
           }
         } catch {
-          // Refresh failed (cookie expired or not present) - user stays logged out
           handleLogoutCleanup();
         }
       } else {
@@ -120,29 +133,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (res.data?.success && res.data?.data?.status === 'success') {
         const token = res.data.data.token;
         const userData = res.data.data.user;
-        const mapped = mapLevelToRoleAndPermissions(userData.level);
+        const mapped = mapLevelToRoleAndPermissions(userData.level, userData.permissions);
         
         const fullUser: User = {
           id: userData.email,
           name: userData.name,
           email: userData.email,
           role: mapped.role,
-          plantId: 'daman-plant'
+          plantId: 'PUNE', // Set plant context default to PUNE
+          permissions: userData.permissions
         };
 
-        // Store only non-sensitive user profile in localStorage (no token).
-        // The access token is kept in memory only (via setAccessToken) to
-        // prevent XSS token theft. Session is restored from the httpOnly
-        // refresh cookie on next page load via checkSession → /auth/refresh.
         localStorage.setItem('cmms_user', JSON.stringify(fullUser));
-        // SECURITY: Do NOT store token in localStorage. Token stays in memory.
-
         setAccessToken(token);
         setAccessTokenState(token);
         setUser(fullUser);
         setPermissions(mapped.permissions);
         setIsLoading(false);
-        return; // Login succeeded
+        return; 
       }
       throw new Error(res.data?.message || 'Login failed');
     } catch (error) {

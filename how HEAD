@@ -1,0 +1,21 @@
+[33mcommit bd5da42cf93a1912a55dc904f5a0bd214df25afb[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Merge: 606d197 c623cfb
+Author: yogeshkp85-bit <yogeshkp85@gmail.com>
+Date:   Fri Jun 26 20:45:17 2026 +0530
+
+    Merge pull request #2 from yogeshkp85-bit/fix/phase-6-5-stabilization
+    
+    fix: Phase 1 - Form fixes, master config, dark mode dropdowns
+
+ backend/.env.example                  |  30 [32m++[m
+ backend/package.json                  |  10 [32m+[m[31m-[m
+ backend/src/jobs/dailyReportJob.ts    |  55 [32m+++[m
+ backend/src/jobs/syncJob.ts           |  79 [32m++++[m
+ backend/src/server.ts                 |  11 [32m+[m
+ backend/src/services/email.service.ts |  71 [32m++++[m
+ frontend/src/config/masterConfig.ts   | 208 [32m++++++++++[m
+ frontend/src/index.css                |  33 [32m++[m
+ frontend/src/pages/AdminApproval.tsx  | 239 [32m+++++++++++[m[31m-[m
+ frontend/src/pages/BreakdownEntry.tsx | 690 [32m++++++++++++++++++++[m[31m--------------[m
+ frontend/src/services/offlineQueue.ts |  99 [32m+++++[m
+ 11 files changed, 1237 insertions(+), 288 deletions(-)

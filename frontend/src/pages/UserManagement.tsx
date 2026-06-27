@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
-  Users, UserPlus, Trash2, ShieldCheck, Mail,
-  Lock, User as UserIcon, ShieldAlert, Edit2, X, Save, Eye, EyeOff
+  Users, UserPlus, Trash2, ShieldCheck, ShieldAlert, Edit2, X, Save, Eye, EyeOff
 } from 'lucide-react';
 
 interface UserRecord {
@@ -11,6 +10,7 @@ interface UserRecord {
   name: string;
   email: string;
   level: string;
+  permissions?: any;
 }
 
 const ROLES = [
@@ -20,6 +20,32 @@ const ROLES = [
   { value: 'supervisor', label: 'Supervisor',    color: 'bg-sky-500/10 border-sky-500/20 text-sky-400' },
   { value: 'technician', label: 'Technician',    color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' },
   { value: 'viewer',     label: 'Viewer',        color: 'bg-slate-800 border-slate-700 text-slate-400' },
+];
+
+const MODULES = [
+  'Dashboard',
+  'Breakdown',
+  'Preventive Maintenance',
+  'Planning',
+  'Corrective Maintenance',
+  'Approval Queue',
+  'Reports',
+  'Analytics',
+  'Inventory',
+  'Master Setup',
+  'Administration',
+  'Mobile API',
+  'User Management'
+];
+
+const ACTIONS = [
+  'View',
+  'Create',
+  'Edit',
+  'Delete',
+  'Approve',
+  'Export',
+  'Import'
 ];
 
 const getRoleStyle = (level: string) =>
@@ -45,6 +71,7 @@ export const UserManagement: React.FC = () => {
   const [editName, setEditName] = useState('');
   const [editLevel, setEditLevel] = useState('');
   const [editPassword, setEditPassword] = useState('');
+  const [editPermissions, setEditPermissions] = useState<Record<string, string[]>>({});
   const [isEditSaving, setIsEditSaving] = useState(false);
 
   const fetchUsers = async () => {
@@ -79,7 +106,31 @@ export const UserManagement: React.FC = () => {
     }
     setIsSubmitting(true);
     try {
-      await api.post('/auth/register', { name, email, password, level, plantCode: 'DAMAN' });
+      // Default initial permission presets for role
+      const defaultPerms: Record<string, string[]> = {};
+      if (level === 'superadmin') {
+        MODULES.forEach(m => defaultPerms[m] = ACTIONS);
+      } else if (level === 'admin') {
+        MODULES.forEach(m => {
+          if (m !== 'User Management') defaultPerms[m] = ACTIONS;
+        });
+      } else if (level === 'technician') {
+        defaultPerms['Dashboard'] = ['View'];
+        defaultPerms['Breakdown'] = ['View', 'Create'];
+        defaultPerms['Preventive Maintenance'] = ['View'];
+      } else {
+        defaultPerms['Dashboard'] = ['View'];
+        defaultPerms['Preventive Maintenance'] = ['View'];
+      }
+
+      await api.post('/auth/register', { 
+        name, 
+        email, 
+        password, 
+        level, 
+        plantCode: 'PUNE',
+        permissions: defaultPerms
+      });
       showMsg(`User "${name}" created successfully.`);
       setName(''); setEmail(''); setPassword(''); setLevel('technician');
       fetchUsers();
@@ -95,13 +146,18 @@ export const UserManagement: React.FC = () => {
     setEditName(u.name);
     setEditLevel(u.level);
     setEditPassword('');
+    setEditPermissions(u.permissions || {});
   };
 
   const handleEditSave = async () => {
     if (!editUser) return;
     setIsEditSaving(true);
     try {
-      const payload: any = { name: editName, level: editLevel };
+      const payload: any = { 
+        name: editName, 
+        level: editLevel,
+        permissions: editPermissions
+      };
       if (editPassword.trim().length >= 6) payload.password = editPassword;
       else if (editPassword.trim().length > 0 && editPassword.trim().length < 6) {
         showMsg('New password must be at least 6 characters.', true);
@@ -222,7 +278,7 @@ export const UserManagement: React.FC = () => {
         <div className="glass-panel rounded-xl overflow-hidden lg:col-span-2">
           <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
             <h2 className="text-sm font-bold text-gray-200">All User Accounts</h2>
-            <span className="text-[10px] text-gray-500 font-mono">Click Edit to change role or password</span>
+            <span className="text-[10px] text-gray-500 font-mono">Click Edit to change role, password or permissions</span>
           </div>
           {isLoading ? (
             <div className="flex items-center justify-center py-12 gap-2 text-gray-500 text-sm">
@@ -287,49 +343,98 @@ export const UserManagement: React.FC = () => {
       {/* Edit User Modal */}
       {editUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="glass-panel rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+          <div className="glass-panel rounded-2xl w-full max-w-2xl p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-sm font-bold text-gray-100 flex items-center gap-2">
-                <Edit2 size={14} className="text-emerald-400" /> Edit User
+                <Edit2 size={14} className="text-emerald-400" /> Edit User & Permissions
               </h3>
               <button onClick={() => setEditUser(null)} className="text-gray-400 hover:text-gray-200 cursor-pointer">
                 <X size={16} />
               </button>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Email (read-only)</label>
-                <div className="glass-input px-3 py-2 rounded-lg text-xs text-gray-500 font-mono">{editUser.email}</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* User Basics */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Email (read-only)</label>
+                  <div className="glass-input px-3 py-2 rounded-lg text-xs text-gray-500 font-mono">{editUser.email}</div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Full Name</label>
+                  <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
+                    className="glass-input px-3 py-2 w-full rounded-lg text-xs text-gray-200" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Role</label>
+                  <select value={editLevel} onChange={e => setEditLevel(e.target.value)}
+                    className="glass-input px-3 py-2 w-full rounded-lg text-xs text-gray-200 cursor-pointer bg-[#0f172a]">
+                    {ROLES.map(r => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                    New Password <span className="text-gray-600 font-normal normal-case">(leave blank to keep current)</span>
+                  </label>
+                  <input type="password" value={editPassword} onChange={e => setEditPassword(e.target.value)}
+                    placeholder="Enter new password or leave blank"
+                    className="glass-input px-3 py-2 w-full rounded-lg text-xs text-gray-200" />
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Full Name</label>
-                <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
-                  className="glass-input px-3 py-2 w-full rounded-lg text-xs text-gray-200" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Role</label>
-                <select value={editLevel} onChange={e => setEditLevel(e.target.value)}
-                  className="glass-input px-3 py-2 w-full rounded-lg text-xs text-gray-200 cursor-pointer">
-                  {ROLES.map(r => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
-                </select>
-                <p className="text-[9px] text-gray-500 mt-1">
-                  Changing role takes effect on next login by that user.
-                </p>
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                  New Password <span className="text-gray-600 font-normal normal-case">(leave blank to keep current)</span>
-                </label>
-                <input type="password" value={editPassword} onChange={e => setEditPassword(e.target.value)}
-                  placeholder="Enter new password or leave blank"
-                  className="glass-input px-3 py-2 w-full rounded-lg text-xs text-gray-200" />
+
+              {/* Granular Module Permissions */}
+              <div className="flex flex-col">
+                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Module-Level Access Control</label>
+                <div className="flex-1 max-h-80 overflow-y-auto border border-white/5 rounded-lg custom-scrollbar">
+                  <table className="w-full text-[10px] text-left">
+                    <thead>
+                      <tr className="bg-slate-900/50 text-gray-400 sticky top-0 backdrop-blur">
+                        <th className="p-2 font-semibold">Module</th>
+                        {ACTIONS.map(act => <th key={act} className="p-2 font-semibold text-center">{act}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {MODULES.map(mod => {
+                        const modulePerms = editPermissions[mod] || [];
+                        return (
+                          <tr key={mod} className="hover:bg-white/[0.01]">
+                            <td className="p-2 font-medium text-gray-300">{mod}</td>
+                            {ACTIONS.map(act => {
+                              const isChecked = modulePerms.includes(act);
+                              return (
+                                <td key={act} className="p-2 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={e => {
+                                      let updatedActions = [...modulePerms];
+                                      if (e.target.checked) {
+                                        updatedActions.push(act);
+                                      } else {
+                                        updatedActions = updatedActions.filter(a => a !== act);
+                                      }
+                                      setEditPermissions({
+                                        ...editPermissions,
+                                        [mod]: updatedActions
+                                      });
+                                    }}
+                                    className="w-3.5 h-3.5 rounded bg-gray-800 border-gray-600 text-cyan-500 focus:ring-0 cursor-pointer"
+                                  />
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 
-            <div className="flex gap-3 mt-5 pt-4 border-t border-white/5">
+            <div className="flex gap-3 mt-6 pt-4 border-t border-white/5">
               <button onClick={() => setEditUser(null)}
                 className="flex-1 py-2 text-xs text-gray-400 border border-white/10 rounded-lg cursor-pointer hover:text-gray-200">
                 Cancel
@@ -339,7 +444,7 @@ export const UserManagement: React.FC = () => {
                 {isEditSaving
                   ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   : <Save size={12} />}
-                Save Changes
+                Save Changes & Permissions
               </button>
             </div>
           </div>

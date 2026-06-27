@@ -13,6 +13,7 @@ import { router as machinesRouter } from './machines.routes';
 import { router as configRouter } from './config.routes';
 import { router as pmRouter } from './pm.routes';
 import mastersRouter from './masters.routes';
+import { mdmController } from '../controllers/mdm.controller';
 
 const router = Router();
 
@@ -113,5 +114,16 @@ router.use('/config', authenticate, authorize('Masters'), configRouter);
 // ---------------------------------------------------------
 router.use('/pm', authenticate, authorize('PreventiveMaintenance'), pmRouter);
 router.use('/masters', mastersRouter);  // Master Setup — auth handled inside mastersRouter
+
+// ---------------------------------------------------------
+// 12. Master Data Management (MDM) Module
+// ---------------------------------------------------------
+router.get('/v1/mdm/equipment-tree', (req, res) => mdmController.getEquipmentTree(req, res));
+router.get('/v1/masters/generic/:tableName', (req, res) => mdmController.listRecords(req, res));
+router.get('/v1/masters/generic/:tableName/:id', (req, res) => mdmController.getRecord(req, res));
+router.post('/v1/masters/generic/:tableName', authorize('Masters'), (req, res) => mdmController.createRecord(req, res));
+router.put('/v1/masters/generic/:tableName/:id', authorize('Masters'), (req, res) => mdmController.updateRecord(req, res));
+router.delete('/v1/masters/generic/:tableName/:id', authorize('Masters'), (req, res) => mdmController.deleteRecord(req, res));
+router.get('/v1/masters/dropdowns/:tableName', (req, res) => mdmController.getDropdown(req, res));
 
 export default router;

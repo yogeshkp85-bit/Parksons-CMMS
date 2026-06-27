@@ -16,7 +16,9 @@ import {
   MapPin,
   CheckCircle2,
   AlertTriangle,
-  XCircle
+  XCircle,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 
 export const AppLayout: React.FC = () => {
@@ -28,6 +30,7 @@ export const AppLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [mastersOpen, setMastersOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -69,12 +72,6 @@ export const AppLayout: React.FC = () => {
       path: '/pm', 
       icon: <CalendarDays size={18} />, 
       permission: 'PreventiveMaintenance' 
-    },
-    { 
-      name: 'Masters', 
-      path: '/machines', 
-      icon: <Settings size={18} />, 
-      permission: 'Masters' 
     },
     { 
       name: 'User Management', 
@@ -185,6 +182,61 @@ export const AppLayout: React.FC = () => {
               {item.name}
             </Link>
           ))}
+
+          {/* Master Setup Grouped Collapsible Menus */}
+          {(isSuperAdmin || permissions.includes('Masters')) && (
+            <div className="space-y-1 pt-2">
+              <button
+                type="button"
+                onClick={() => setMastersOpen(!mastersOpen)}
+                className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium text-gray-400 hover:text-gray-200 hover:bg-white/5 border border-transparent transition-all duration-200 cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-400">
+                    <Settings size={18} />
+                  </span>
+                  <span>Master Setup</span>
+                </div>
+                {mastersOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </button>
+              
+              {mastersOpen && (
+                <div className="pl-6 space-y-3.5 mt-1.5 border-l border-white/5 ml-6">
+                  {/* Organization Group */}
+                  <div className="space-y-1">
+                    <p className="text-[9px] uppercase tracking-wider text-gray-500 font-bold px-2">Organization</p>
+                    <Link to="/mdm/mst_plant" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/mdm/mst_plant') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Plant Master</Link>
+                    <Link to="/mdm/mst_department" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/mdm/mst_department') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Department Master</Link>
+                    <Link to="/machines" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/machines') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Section Master</Link>
+                  </div>
+                  
+                  {/* Machine Config Group */}
+                  <div className="space-y-1">
+                    <p className="text-[9px] uppercase tracking-wider text-gray-500 font-bold px-2">Machine Config</p>
+                    <Link to="/mdm/mst_machine_type" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/mdm/mst_machine_type') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Machine Type</Link>
+                    <Link to="/mdm/mst_machine" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/mdm/mst_machine') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Machine Master</Link>
+                    <Link to="/mdm/mst_machine_unit" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/mdm/mst_machine_unit') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Machine Unit</Link>
+                  </div>
+
+                  {/* Maintenance Config Group */}
+                  <div className="space-y-1">
+                    <p className="text-[9px] uppercase tracking-wider text-gray-500 font-bold px-2">Maintenance</p>
+                    <Link to="/mdm/mst_problem_type" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/mdm/mst_problem_type') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Problem Type</Link>
+                    <Link to="/mdm/mst_wo_category" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/mdm/mst_wo_category') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>WO Category</Link>
+                    <Link to="/mdm/mst_status" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/mdm/mst_status') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Status Master</Link>
+                    <Link to="/mdm/mst_priority" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/mdm/mst_priority') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Priority Master</Link>
+                  </div>
+
+                  {/* Administration Group */}
+                  <div className="space-y-1">
+                    <p className="text-[9px] uppercase tracking-wider text-gray-500 font-bold px-2">Administration</p>
+                    <Link to="/mdm/mst_employee" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/mdm/mst_employee') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Employee Master</Link>
+                    <Link to="/mdm/mst_shift" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/mdm/mst_shift') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Shift Master</Link>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </nav>
 
         {/* Sidebar Footer User Info */}

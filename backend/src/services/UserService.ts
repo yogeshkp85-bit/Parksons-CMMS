@@ -69,7 +69,8 @@ export class UserService {
       user: {
         name: user.name,
         email: user.email,
-        level: user.level
+        level: user.level,
+        permissions: user.permissions
       }
     };
   }

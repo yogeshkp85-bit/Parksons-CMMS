@@ -213,5 +213,60 @@ export const pmController = {
     } catch (err: any) {
       return res.status(500).json({ error: err.message });
     }
+  },
+
+  async createSchedule(req: Request, res: Response) {
+    try {
+      const { machineId, pmTaskId, dueDate, status, completedByUserId, completionRemarks, checkpointsResult } = req.body;
+      const schedule = await prisma.pmSchedule.create({
+        data: {
+          machineId,
+          pmTaskId,
+          dueDate: new Date(dueDate),
+          status: status || 'PENDING',
+          completedByUserId: completedByUserId || null,
+          completionRemarks: completionRemarks || null,
+          checkpointsResult: checkpointsResult || null
+        }
+      });
+      return res.json(schedule);
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  },
+
+  async updateSchedule(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const { machineId, pmTaskId, dueDate, status, completedByUserId, completionRemarks, checkpointsResult } = req.body;
+      const schedule = await prisma.pmSchedule.update({
+        where: { id },
+        data: {
+          machineId,
+          pmTaskId,
+          dueDate: new Date(dueDate),
+          status,
+          completedByUserId: completedByUserId || null,
+          completionRemarks: completionRemarks || null,
+          checkpointsResult: checkpointsResult || null
+        }
+      });
+      return res.json(schedule);
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  },
+
+  async deleteSchedule(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      await prisma.pmSchedule.update({
+        where: { id },
+        data: { deletedAt: new Date() }
+      });
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
   }
 };

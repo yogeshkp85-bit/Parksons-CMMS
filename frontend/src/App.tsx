@@ -13,6 +13,7 @@ import { AdminApproval } from './pages/AdminApproval';
 import { UserManagement } from './pages/UserManagement';
 import { Unauthorized } from './pages/Unauthorized';
 import { MachineMaster } from './pages/MachineMaster';
+import { DynamicMDM } from './pages/masters/DynamicMDM';
 import { PMIndex } from './pages/pm/PMIndex';
 import { Reports } from './pages/Reports';
 import { ShieldAlert } from 'lucide-react';
@@ -108,6 +109,16 @@ function App() {
                 element={
                   <PermissionRoute requiredPermission="Masters">
                     <MachineMaster />
+                  </PermissionRoute>
+                }
+              />
+
+              {/* Dynamic MDM Masters */}
+              <Route
+                path="mdm/:tableName"
+                element={
+                  <PermissionRoute requiredPermission="Masters">
+                    <DynamicMDM />
                   </PermissionRoute>
                 }
               />

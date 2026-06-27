@@ -7,7 +7,7 @@
 
 import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.middleware';
-import { requirePermission } from '../middlewares/rbac.middleware';
+import { authorize } from '../middlewares/rbac.middleware';
 import {
   listMaster, getMaster, createMaster, updateMaster,
   deleteMaster, restoreMaster,
@@ -32,9 +32,9 @@ router.get('/financial-years/list',    getFinancialYearList);   // GET /masters/
 
 router.get('/:model',              listMaster);
 router.get('/:model/:id',          getMaster);
-router.post('/:model',             requirePermission('Masters'), createMaster);
-router.put('/:model/:id/restore',  requirePermission('Masters'), restoreMaster);
-router.put('/:model/:id',          requirePermission('Masters'), updateMaster);
-router.delete('/:model/:id',       requirePermission('Masters'), deleteMaster);
+router.post('/:model',             authorize('Masters'), createMaster);
+router.put('/:model/:id/restore',  authorize('Masters'), restoreMaster);
+router.put('/:model/:id',          authorize('Masters'), updateMaster);
+router.delete('/:model/:id',       authorize('Masters'), deleteMaster);
 
 export default router;

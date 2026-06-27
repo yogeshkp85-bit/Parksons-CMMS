@@ -79,19 +79,20 @@ export class UserController {
 
   async update(req: Request, res: Response) {
     const { email } = req.params;
-    const { name, level, password } = req.body;
+    const { name, level, password, permissions } = req.body;
     try {
       const updateData: any = {};
       if (name)  updateData.name  = name;
       if (level) updateData.level = level;
+      if (permissions !== undefined) updateData.permissions = permissions;
       if (password && password.length >= 6) {
         const bcrypt = require('bcrypt');
-        updateData.passwordHash = await bcrypt.hash(password, 10);
+        updateData.password = await bcrypt.hash(password, 10);
       }
-      const updated = await prisma.user.update({
+      const updated = await prisma.adminUsers.update({
         where: { email },
         data: updateData,
-        select: { id: true, name: true, email: true, level: true },
+        select: { id: true, name: true, email: true, level: true, permissions: true },
       });
       return res.json({ success: true, data: updated });
     } catch (err: any) {

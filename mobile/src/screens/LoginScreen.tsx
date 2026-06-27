@@ -2,12 +2,18 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { COLORS, TYPOGRAPHY } from '../components/Theme';
+import { LOCAL_DEV_IP } from '../config';
 
 export default function LoginScreen() {
   const { login, serverIp } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [ipAddress, setIpAddress] = useState(serverIp || '10.0.2.2');
+  const [ipAddress, setIpAddress] = useState(() => {
+    if (Platform.OS === 'web' && (serverIp === '10.0.2.2' || !serverIp)) {
+      return 'localhost';
+    }
+    return serverIp || LOCAL_DEV_IP;
+  });
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(false);
 

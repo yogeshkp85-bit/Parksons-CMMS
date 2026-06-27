@@ -31,6 +31,7 @@ model User {
   breakdownsApproved BreakdownLog[] @relation("ApprovedByRelation")
   pmCompleted        PmSchedule[]   @relation("PmCompletedBy")
   auditLogs          AuditLog[]
+  sysAuditLogs       SysAuditLog[]
 
   @@map("users")
 }
@@ -134,6 +135,7 @@ model Section {
   units         Unit[]
   machines      Machine[]
   breakdownLogs BreakdownLog[]
+  pmTasks       PmTask[]
 
   @@unique([departmentId, code])
   @@map("sections")
@@ -466,8 +468,29 @@ model PmTask {
   updatedAt         DateTime  @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")
 
-  category  MachineCategory?  @relation(fields: [machineCategoryId], references: [id])
-  frequency PmFrequencyMaster @relation(fields: [frequencyId], references: [id])
+  plantId           String?   @map("plant_id") @db.Uuid
+  departmentId      String?   @map("department_id") @db.Uuid
+  sectionId         String?   @map("section_id") @db.Uuid
+  machineTypeId     String?   @map("machine_type_id") @db.Uuid
+  machineId         String?   @map("machine_id") @db.Uuid
+  unitId            String?   @map("unit_id") @db.Uuid
+
+  estimatedTime     Float?    @map("estimated_time")
+  requiredSkill     String?   @map("required_skill")
+  safetyInstruction String?   @map("safety_instruction")
+  lubricationPoint  String?   @map("lubrication_point")
+  spareRequired     String?   @map("spare_required")
+  sop               String?
+  photoUrl          String?   @map("photo_url")
+
+  category    MachineCategory?  @relation(fields: [machineCategoryId], references: [id])
+  frequency   PmFrequencyMaster @relation(fields: [frequencyId], references: [id])
+  plant       MstPlant?         @relation(fields: [plantId], references: [plantId])
+  department  MstDepartment?    @relation(fields: [departmentId], references: [deptId])
+  section     Section?          @relation(fields: [sectionId], references: [id])
+  machineType MstMachineType?   @relation(fields: [machineTypeId], references: [machineTypeId])
+  machine     MstMachine?       @relation(fields: [machineId], references: [machineId])
+  unit        MstMachineUnit?   @relation(fields: [unitId], references: [unitId])
 
   schedules PmSchedule[]
 
@@ -650,11 +673,12 @@ model MachineData {
 }
 
 model AdminUsers {
-  id       String @id @default(uuid()) @db.Uuid
-  name     String
-  email    String @unique
-  password String
-  level    String
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String
+  email       String  @unique
+  password    String
+  level       String
+  permissions Json?
 
   @@map("admin_users")
 }
@@ -714,4 +738,184 @@ model SyncLog {
   completedAt      DateTime? @map("completed_at")
 
   @@map("sync_logs")
+}
+
+// =========================================================================
+// MASTER DATA MANAGEMENT (MDM) MODULE
+// =========================================================================
+
+model MstPlant {
+  plantId   String    @id @default(uuid()) @db.Uuid @map("plant_id")
+  plantCode String    @unique @map("plant_code")
+  plantName String    @map("plant_name")
+  city      String?
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  departments MstDepartment[]
+  machines    MstMachine[]
+  pmTasks     PmTask[]
+
+  @@map("mst_plant")
+}
+
+model MstDepartment {
+  deptId    String    @id @default(uuid()) @db.Uuid @map("dept_id")
+  deptCode  String    @map("dept_code")
+  deptName  String    @map("dept_name")
+  plantId   String    @db.Uuid @map("plant_id")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  plant        MstPlant         @relation(fields: [plantId], references: [plantId])
+  machineTypes MstMachineType[]
+  pmTasks      PmTask[]
+
+  @@map("mst_department")
+}
+
+model MstMachineType {
+  machineTypeId String    @id @default(uuid()) @db.Uuid @map("machine_type_id")
+  typeCode      String    @map("type_code")
+  typeName      String    @map("type_name")
+  deptId        String    @db.Uuid @map("dept_id")
+  sortOrder     Int       @default(0) @map("sort_order")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  department MstDepartment @relation(fields: [deptId], references: [deptId])
+  machines   MstMachine[]
+  pmTasks    PmTask[]
+
+  @@map("mst_machine_type")
+}
+
+model MstMachine {
+  machineId     String    @id @default(uuid()) @db.Uuid @map("machine_id")
+  machineCode   String    @map("machine_code")
+  machineName   String    @map("machine_name")
+  machineTypeId String    @db.Uuid @map("machine_type_id")
+  plantId       String    @db.Uuid @map("plant_id")
+  criticality   String?
+  serialNo      String?   @map("serial_no")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  machineType MstMachineType   @relation(fields: [machineTypeId], references: [machineTypeId])
+  plant       MstPlant         @relation(fields: [plantId], references: [plantId])
+  units       MstMachineUnit[]
+  pmTasks     PmTask[]
+
+  @@map("mst_machine")
+}
+
+model MstMachineUnit {
+  unitId       String    @id @default(uuid()) @db.Uuid @map("unit_id")
+  unitCode     String    @map("unit_code")
+  unitName     String    @map("unit_name")
+  machineId    String    @db.Uuid @map("machine_id")
+  parentUnitId String?   @db.Uuid @map("parent_unit_id")
+  position     Int?
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  machine    MstMachine      @relation(fields: [machineId], references: [machineId])
+  parentUnit MstMachineUnit? @relation("UnitHierarchy", fields: [parentUnitId], references: [unitId])
+  subUnits   MstMachineUnit[] @relation("UnitHierarchy")
+  pmTasks    PmTask[]
+
+  @@map("mst_machine_unit")
+}
+
+model MstEmployee {
+  employeeId  String    @id @default(uuid()) @db.Uuid @map("employee_id")
+  empCode     String    @unique @map("emp_code")
+  empName     String    @map("emp_name")
+  email       String?
+  phone       String?
+  designation String?
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("mst_employee")
+}
+
+model MstShift {
+  shiftId   String    @id @default(uuid()) @db.Uuid @map("shift_id")
+  shiftCode String    @unique @map("shift_code")
+  shiftName String    @map("shift_name")
+  startTime String?   @map("start_time")
+  endTime   String?   @map("end_time")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@map("mst_shift")
+}
+
+model MstProblemType {
+  problemTypeId String    @id @default(uuid()) @db.Uuid @map("problem_type_id")
+  typeCode      String    @map("type_code")
+  typeName      String    @map("type_name")
+  colorCode     String?   @map("color_code")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("mst_problem_type")
+}
+
+model MstWoCategory {
+  categoryId   String    @id @default(uuid()) @db.Uuid @map("category_id")
+  categoryCode String    @map("category_code")
+  categoryName String    @map("category_name")
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("mst_wo_category")
+}
+
+model MstStatus {
+  statusId   String    @id @default(uuid()) @db.Uuid @map("status_id")
+  statusCode String    @map("status_code")
+  statusName String    @map("status_name")
+  isActive   Boolean   @default(true) @map("is_active")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@map("mst_status")
+}
+
+model MstPriority {
+  priorityId   String    @id @default(uuid()) @db.Uuid @map("priority_id")
+  priorityCode String    @map("priority_code")
+  priorityName String    @map("priority_name")
+  level        Int       @default(0)
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("mst_priority")
+}
+
+model SysAuditLog {
+  logId     String   @id @default(uuid()) @db.Uuid @map("log_id")
+  tableName String   @map("table_name")
+  recordId  String   @map("record_id")
+  action    String
+  oldValue  Json?    @map("old_value")
+  newValue  Json?    @map("new_value")
+  userId    String?  @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("sys_audit_log")
 }
