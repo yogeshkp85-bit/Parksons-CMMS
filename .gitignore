@@ -120,3 +120,12 @@ out
 # Database files
 backend/prisma/dev.db
 credentials.json.json
+
+# ── Junk / temp files (added after MDM commit cleanup) ──────────────────────
+temp/
+~$*
+*.tmp
+how HEAD
+~WRL*.tmp
+*.docx.zip
+*.xlsm.zip
