@@ -20,10 +20,11 @@ export const PMSchedule: React.FC = () => {
   const fetchSchedules = async () => {
     try {
       setLoading(true);
-      const { data } = await api.get('/pm/schedules');
+      const res = await api.get('/pm/schedules');
+      const data = Array.isArray(res.data) ? res.data : res.data?.data || [];
       setSchedules(data);
     } catch (err) {
-      alert('Failed to load PM schedules', 'ERROR');
+      console.error('Failed to load PM schedules');
     } finally {
       setLoading(false);
     }
@@ -56,7 +57,7 @@ export const PMSchedule: React.FC = () => {
     // Validate that all checkpoints have been marked Pass or Fail
     const uncompleted = checklist.some(c => c.passed === null);
     if (uncompleted && checklist.length > 0) {
-      alert('Please mark Pass or Fail for all checkpoints.', 'ERROR');
+      console.warn('Please mark Pass or Fail for all checkpoints.');
       return;
     }
 

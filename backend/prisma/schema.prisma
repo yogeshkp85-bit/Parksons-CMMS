@@ -401,7 +401,11 @@ model BreakdownLog {
   rootCauseDescription   String?   @map("root_cause")
   remarks                String?
   attendedBy             String?   @map("attended_by")
+  additionalTeam         String?   @map("additional_team")   // comma-separated co-worker names
   submittedBy            String?   @map("submitted_by")
+  problemReported        String?   @map("problem_reported")  // what operator reported
+  spareConsumed          String?   @map("spare_consumed")    // free text; links to spare module later
+  endDate                DateTime? @map("end_date")          // for multi-day breakdowns
   downtimeHours          Float?    @map("downtime_hours")
   manpowerCount          Int?      @default(1) @map("manpower_count")
   imageUrl               String?   @map("image_url")
@@ -512,6 +516,41 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+// =========================================================================
+// MASTER ADDITIONS — FINANCIAL YEAR & TECHNICIAN
+// =========================================================================
+
+model FinancialYear {
+  id          String    @id @default(uuid()) @db.Uuid
+  code        String    @unique   // e.g. "2024-25"
+  label       String              // e.g. "FY 2024-25"
+  startDate   DateTime  @map("start_date")   // Apr 1 YYYY
+  endDate     DateTime  @map("end_date")     // Mar 31 YYYY+1
+  isCurrent   Boolean   @default(false) @map("is_current")
+  isActive    Boolean   @default(true) @map("is_active")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("financial_years")
+}
+
+model Technician {
+  id           String    @id @default(uuid()) @db.Uuid
+  code         String    @unique   // e.g. "TECH-001"
+  name         String
+  designation  String?
+  department   String?
+  phone        String?
+  isActive     Boolean   @default(true) @map("is_active")
+  displayOrder Int       @default(0) @map("display_order")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  @@map("technicians")
+}
+
 // =========================================================================
 // PHASE 6 PLACEHOLDERS
 // =========================================================================

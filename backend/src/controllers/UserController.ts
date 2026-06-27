@@ -77,6 +77,31 @@ export class UserController {
     }
   }
 
+  async update(req: Request, res: Response) {
+    const { email } = req.params;
+    const { name, level, password } = req.body;
+    try {
+      const updateData: any = {};
+      if (name)  updateData.name  = name;
+      if (level) updateData.level = level;
+      if (password && password.length >= 6) {
+        const bcrypt = require('bcrypt');
+        updateData.passwordHash = await bcrypt.hash(password, 10);
+      }
+      const updated = await prisma.user.update({
+        where: { email },
+        data: updateData,
+        select: { id: true, name: true, email: true, level: true },
+      });
+      return res.json({ success: true, data: updated });
+    } catch (err: any) {
+      if (err.code === 'P2025') {
+        return res.status(404).json({ success: false, message: 'User not found' });
+      }
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  }
+
   async getRegisterMetadata(req: Request, res: Response) {
     try {
       // Try to fetch roles from the database for accuracy

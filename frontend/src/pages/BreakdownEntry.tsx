@@ -153,9 +153,9 @@ export const BreakdownEntry: React.FC = () => {
     if (shiftId && val && !isTimeValidForShift(shiftId, val)) {
       const shiftDef = MASTER_SHIFTS.find(s => s.id === shiftId);
       if (shiftId === 'SHIFT_3') {
-        setShiftTimeError('Third Shift start time must be 23:00–23:59 or 00:00–06:59');
+        setShiftTimeError('Wrong entry — Third Shift start time must be 23:00–23:59 or 00:00–06:59. Correct it before submitting.');
       } else {
-        setShiftTimeError(`Start time for ${shiftDef?.name} must be ${shiftDef?.startTimeMin} – ${shiftDef?.startTimeMax}`);
+        setShiftTimeError(`Wrong entry — ${shiftDef?.name} start time must be ${shiftDef?.startTimeMin}–${shiftDef?.startTimeMax}. Correct it before submitting.`);
       }
     } else {
       setShiftTimeError(null);
@@ -170,8 +170,8 @@ export const BreakdownEntry: React.FC = () => {
     if (timeStart && val && !isTimeValidForShift(val, timeStart)) {
       const shiftDef = MASTER_SHIFTS.find(s => s.id === val);
       setShiftTimeError(val === 'SHIFT_3'
-        ? 'Third Shift start time must be 23:00–23:59 or 00:00–06:59'
-        : `Start time for ${shiftDef?.name} must be ${shiftDef?.startTimeMin} – ${shiftDef?.startTimeMax}`
+        ? 'Wrong entry — Third Shift start time must be 23:00–23:59 or 00:00–06:59. Correct it.'
+        : `Wrong entry — ${shiftDef?.name} start time must be ${shiftDef?.startTimeMin}–${shiftDef?.startTimeMax}. Correct it.`
       );
     }
   };
@@ -236,7 +236,7 @@ export const BreakdownEntry: React.FC = () => {
   const durationInfo = getCalculatedDurationInfo();
 
   // Progress calculations (16 required fields including new ones)
-  const totalRequired = 16; 
+  const totalRequired = 14; 
   const doneCount = [
     !!date,
     !!shiftId,
@@ -252,8 +252,7 @@ export const BreakdownEntry: React.FC = () => {
     !!submittedBy,
     problemDescription.trim().length >= 5,
     actionTakenDescription.trim().length >= 5,
-    problemReported.trim().length >= 3,   // Step 5: Problem Reported
-    true                                   // spareConsumed is optional
+    true   // spareConsumed optional, remarks optional
   ].filter(Boolean).length;
 
   const percentComplete = Math.round((doneCount / totalRequired) * 100);
@@ -344,9 +343,6 @@ export const BreakdownEntry: React.FC = () => {
     if (!attendedBy) errors.push('Attended By is required');
     if (!submittedBy) errors.push('Submitted By is required');
 
-    if (problemReported.trim().length < 3) {
-      errors.push('Problem Reported is required (min 3 chars)');
-    }
     if (problemDescription.trim().length < 5) {
       errors.push('Description of Problem is required (min 5 chars)');
     }
@@ -898,101 +894,32 @@ export const BreakdownEntry: React.FC = () => {
             </div>
           </div>
 
-          {/* SECTION 5: PROBLEM REPORTED, ACTION & ROOT CAUSE */}
-          <div className="glass-panel p-5 space-y-4 shadow-md">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 border-b border-white/5 pb-2 uppercase tracking-wider font-mono">
+          {/* ADDITIONAL REMARKS — standalone field, Section 5 merged into Problem Details */}
+          <div className="glass-panel p-5 shadow-md">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 border-b border-white/5 pb-2 uppercase tracking-wider font-mono mb-4">
               <Briefcase size={13} className="text-emerald-500" />
-              <span>Problem, Action & Resolution</span>
+              <span>Additional Remarks</span>
             </div>
-
-            {/* Problem Reported */}
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="block text-[10px] font-semibold text-gray-300 uppercase tracking-wide">
-                  Problem Reported <span className="text-red-500">*</span>
-                </label>
-                <span className={`text-[9px] font-mono ${problemReported.length > 180 ? 'text-red-400' : 'text-gray-500'}`}>
-                  {problemReported.length} / 200
-                </span>
-              </div>
-              <textarea
-                required
-                rows={2}
-                maxLength={200}
-                value={problemReported}
-                onChange={(e) => setProblemReported(e.target.value)}
-                placeholder="What problem was reported by operator / supervisor..."
-                className="glass-input px-3 py-2 block w-full rounded-lg text-xs text-gray-200 resize-y"
-              />
-            </div>
-
-            {/* Action Taken */}
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="block text-[10px] font-semibold text-gray-300 uppercase tracking-wide">
-                  Action Taken <span className="text-red-500">*</span>
-                </label>
-                <span className={`text-[9px] font-mono ${actionTakenDescription.length > 270 ? 'text-red-400' : 'text-gray-500'}`}>
-                  {actionTakenDescription.length} / 300
-                </span>
-              </div>
-              <textarea
-                required
-                rows={3}
-                maxLength={300}
-                value={actionTakenDescription}
-                onChange={(e) => setActionTakenDescription(e.target.value)}
-                placeholder="What was done to fix it..."
-                className="glass-input px-3 py-2 block w-full rounded-lg text-xs text-gray-200 resize-y"
-              />
-            </div>
-
-            {/* Root Cause */}
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="block text-[10px] font-semibold text-gray-300 uppercase tracking-wide">
-                  Root Cause of Problem
-                </label>
-                <span className={`text-[9px] font-mono ${rootCauseDescription.length > 180 ? 'text-red-400' : 'text-gray-500'}`}>
-                  {rootCauseDescription.length} / 200
-                </span>
-              </div>
-              <textarea
-                rows={2}
-                maxLength={200}
-                value={rootCauseDescription}
-                onChange={(e) => setRootCauseDescription(e.target.value)}
-                placeholder="Root cause (if identified)..."
-                className="glass-input px-3 py-2 block w-full rounded-lg text-xs text-gray-200 resize-y"
-              />
-            </div>
-
-            {/* Additional Remarks */}
-            <div>
-              <label className="block text-[10px] font-semibold text-gray-300 mb-1.5 uppercase tracking-wide">
-                Additional Remarks <span className="text-[9px] text-gray-500 font-sans normal-case font-normal">(optional)</span>
-              </label>
-              <textarea
-                rows={2}
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                placeholder="Any additional notes..."
-                className="glass-input px-3 py-2 block w-full rounded-lg text-xs text-gray-200 resize-y"
-              />
-            </div>
+            <textarea
+              rows={3}
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              placeholder="Any additional notes, observations, or special instructions..."
+              className="glass-input px-3 py-2 block w-full rounded-lg text-xs text-gray-200 resize-y"
+            />
           </div>
 
           {/* SUBMIT BUTTONS & LINKS */}
           <div className="space-y-3 pt-2">
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || doneCount < totalRequired || !!shiftTimeError}
               className="w-full py-3.5 rounded-xl text-sm font-semibold text-white glow-btn-primary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>
               ) : (
-                'Submit Maintenance Log'
+                doneCount < totalRequired ? `Complete all fields (${doneCount}/${totalRequired} done)` : 'Submit Maintenance Log'
               )}
             </button>
 

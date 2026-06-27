@@ -33,16 +33,17 @@ export const PMMaster: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [taskRes, freqRes, confRes] = await Promise.all([
+      const [taskRes, freqRes, catRes] = await Promise.all([
         api.get('/pm/tasks'),
         api.get('/pm/frequencies'),
-        api.get('/config/masters')
+        api.get('/masters/machineCategory'),  // Machine categories from master setup
       ]);
-      setTasks(taskRes.data || []);
-      setFrequencies(freqRes.data || []);
-      setCategories(confRes.data?.categories || []);
+      // Handle both array response and {data: [...]} response shapes
+      setTasks(Array.isArray(taskRes.data) ? taskRes.data : taskRes.data?.data || []);
+      setFrequencies(Array.isArray(freqRes.data) ? freqRes.data : freqRes.data?.data || []);
+      setCategories(Array.isArray(catRes.data) ? catRes.data : catRes.data?.data || []);
     } catch (err) {
-      alert('Failed to load PM Master Data', 'ERROR');
+      console.error('Failed to load PM Master Data', err);
     } finally {
       setLoading(false);
     }
@@ -73,10 +74,10 @@ export const PMMaster: React.FC = () => {
     try {
       if (editingTask) {
         await api.put(`/pm/tasks/${editingTask.id}`, formData);
-        alert('PM Task updated successfully', 'SUCCESS');
+        console.log('PM Task updated successfully');
       } else {
         await api.post('/pm/tasks', formData);
-        alert('PM Task created successfully', 'SUCCESS');
+        console.log('PM Task created successfully');
       }
       setIsModalOpen(false);
       fetchData();
