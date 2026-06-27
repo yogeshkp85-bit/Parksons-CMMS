@@ -58,12 +58,7 @@ export const PMMaster: React.FC = () => {
       const [taskRes, freqRes, plantsRes, deptsRes, sectionsRes, typeRes, machRes, unitsRes] = await Promise.all([
         api.get('/pm/tasks'),
         api.get('/pm/frequencies'),
-        api.get('/v1/masters/generic/mst_plant'),
-        api.get('/v1/masters/generic/mst_department'),
-        api.get('/masters/section'), // legacy sections list
-        api.get('/v1/masters/generic/mst_machine_type'),
-        api.get('/v1/masters/generic/mst_machine'),
-        api.get('/v1/masters/generic/mst_machine_unit')
+        api.get('/masters/machines/hierarchy'),  // Dept→Machine→Unit hierarchy
       ]);
 
       setTasks(Array.isArray(taskRes.data) ? taskRes.data : taskRes.data?.data || []);
@@ -72,7 +67,7 @@ export const PMMaster: React.FC = () => {
       setDepartments(deptsRes.data?.data || []);
       setSections(sectionsRes.data?.data || []);
       setMachineTypes(typeRes.data?.data || []);
-      setMachines(machRes.data?.data || []);
+      // machineHierarchy = hierarchyRes.data?.data || {}
       setMachineUnits(unitsRes.data?.data || []);
     } catch (err) {
       console.error('Failed to load PM Master Data', err);
@@ -152,7 +147,7 @@ export const PMMaster: React.FC = () => {
       setIsModalOpen(false);
       fetchData();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to save PM Task');
+      console.error('Failed to save PM Task', err);
     }
   };
 
@@ -162,7 +157,7 @@ export const PMMaster: React.FC = () => {
       await api.delete(`/pm/tasks/${id}`);
       fetchData();
     } catch (err) {
-      alert('Failed to delete task');
+      console.error('Failed to delete PM task');
     }
   };
 
@@ -180,10 +175,10 @@ export const PMMaster: React.FC = () => {
         pmTaskId: generateTaskId,
         startDate: generateStartDate
       });
-      alert(`Successfully generated ${res.data.count} schedules!`);
+      console.log(`Successfully generated ${res.data.count} schedules!`);
       setIsGenerateModalOpen(false);
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to generate schedules');
+      console.error('Failed to generate schedules', err);
     }
   };
 
