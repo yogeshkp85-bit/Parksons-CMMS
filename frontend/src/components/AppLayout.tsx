@@ -233,6 +233,14 @@ export const AppLayout: React.FC = () => {
                     <Link to="/mdm/mst_employee" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/mdm/mst_employee') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Employee Master</Link>
                     <Link to="/mdm/mst_shift" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/mdm/mst_shift') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Shift Master</Link>
                   </div>
+
+                  {/* ── Additional Masters — existing DB models ── */}
+                  <div className="space-y-1 mt-2 pt-2 border-t border-white/5">
+                    <p className="text-[9px] uppercase tracking-wider text-gray-500 font-bold px-2">Additional Masters</p>
+                    <Link to="/masters" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/masters') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Technicians &amp; Shifts</Link>
+                    <Link to="/masters" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/masters') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Financial Years</Link>
+                    <Link to="/masters" className={`block px-2 py-1 text-xs rounded transition-colors ${isActive('/masters') ? 'text-emerald-400 font-semibold bg-emerald-500/5' : 'text-gray-400 hover:text-gray-200'}`}>Categories &amp; PM Freq</Link>
+                  </div>
                 </div>
               )}
             </div>
