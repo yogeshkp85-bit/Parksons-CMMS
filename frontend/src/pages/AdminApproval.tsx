@@ -132,7 +132,11 @@ export const AdminApproval: React.FC = () => {
             createdBy: { name: item.submittedBy || 'N/A' },
             remarks: item.remarks || '',
             actionTaken: item.actionTaken || '',
-            rootCause: item.rootCause || ''
+            rootCause: item.rootCause || '',
+            attendedBy: item.attendedBy || '',
+            problemReported: item.problemReported || '',
+            spareConsumed: item.spareConsumed || '',
+            additionalTeam: item.additionalTeam || ''
           }));
         setPendingLogs(pendingItems);
       }
@@ -156,8 +160,17 @@ export const AdminApproval: React.FC = () => {
     setRootCauseDesc(log.rootCause || '');
     setLogRemarks(log.remarks || '');
     // Populate new editable fields
+    // Format date for HTML <input type="date"> (YYYY-MM-DD)
+    let formattedDate = '';
+    if (log.date) {
+      const d = new Date(log.date);
+      if (!isNaN(d.getTime())) {
+        formattedDate = d.toISOString().split('T')[0];
+      }
+    }
+    
     setEditAttendedBy((log as any).attendedBy || '');
-    setEditDate(log.date || '');
+    setEditDate(formattedDate || '');
     setEditShift(log.shift?.name || '');
     setEditProblemReported((log as any).problemReported || '');
     setEditDescription(log.problemDescription || '');
@@ -460,7 +473,9 @@ export const AdminApproval: React.FC = () => {
                       <select value={editAttendedBy} onChange={e => setEditAttendedBy(e.target.value)}
                         className="glass-input px-2 py-1.5 w-full rounded text-xs text-gray-200 bg-transparent cursor-pointer">
                         <option value="">Select</option>
-                        {TECHNICIANS.map(t => <option key={t} value={t} className="bg-slate-950">{t}</option>)}
+                        {Array.from(new Set([...TECHNICIANS, editAttendedBy])).filter(Boolean).map(t => (
+                          <option key={t} value={t} className="bg-slate-950">{t}</option>
+                        ))}
                       </select>
                     </div>
 

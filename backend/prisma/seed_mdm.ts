@@ -204,8 +204,10 @@ async function main() {
   // 2. Departments
   const deptMap: Record<string, string> = {};
   for (const d of DEPARTMENTS) {
-    const record = await prisma.mstDepartment.create({
-      data: {
+    const record = await prisma.mstDepartment.upsert({
+      where: { plantId_deptCode: { plantId: plant.plantId, deptCode: d.code } },
+      update: { deptName: d.name },
+      create: {
         deptCode: d.code,
         deptName: d.name,
         plantId: plant.plantId,
@@ -218,8 +220,10 @@ async function main() {
   // 3. Machine Types
   const typeMap: Record<string, string> = {};
   for (const t of MACHINE_TYPES) {
-    const record = await prisma.mstMachineType.create({
-      data: {
+    const record = await prisma.mstMachineType.upsert({
+      where: { deptId_typeCode: { deptId: deptMap[t.deptCode], typeCode: t.code } },
+      update: { typeName: t.name },
+      create: {
         typeCode: t.code,
         typeName: t.name,
         deptId: deptMap[t.deptCode],
@@ -233,8 +237,14 @@ async function main() {
   const seedMachines = async (machinesList: any[]) => {
     for (const m of machinesList) {
       // Create Machine
-      const machine = await prisma.mstMachine.create({
-        data: {
+      const machine = await prisma.mstMachine.upsert({
+        where: { plantId_machineCode: { plantId: plant.plantId, machineCode: m.code } },
+        update: {
+          machineName: m.name,
+          machineTypeId: typeMap[m.typeCode],
+          criticality: m.criticality,
+        },
+        create: {
           machineCode: m.code,
           machineName: m.name,
           machineTypeId: typeMap[m.typeCode],
@@ -245,8 +255,13 @@ async function main() {
 
       // Create Units for this machine
       for (let i = 0; i < m.units.length; i++) {
-        await prisma.mstMachineUnit.create({
-          data: {
+        await prisma.mstMachineUnit.upsert({
+          where: { machineId_unitCode: { machineId: machine.machineId, unitCode: m.units[i] } },
+          update: {
+            unitName: m.units[i].charAt(0) + m.units[i].slice(1).toLowerCase().replace('_', ' '),
+            position: i + 1,
+          },
+          create: {
             unitCode: m.units[i],
             unitName: m.units[i].charAt(0) + m.units[i].slice(1).toLowerCase().replace('_', ' '),
             machineId: machine.machineId,
@@ -294,32 +309,40 @@ async function main() {
 
   // 7. Problem Types
   for (const pt of PROBLEM_TYPES) {
-    await prisma.mstProblemType.create({
-      data: pt,
+    await prisma.mstProblemType.upsert({
+      where: { typeCode: pt.typeCode },
+      update: { typeName: pt.typeName, colorCode: pt.colorCode },
+      create: pt,
     });
   }
   console.log(`✓ Seeded ${PROBLEM_TYPES.length} Problem Types`);
 
   // 8. Work Order Categories
   for (const wc of WO_CATEGORIES) {
-    await prisma.mstWoCategory.create({
-      data: wc,
+    await prisma.mstWoCategory.upsert({
+      where: { categoryCode: wc.categoryCode },
+      update: { categoryName: wc.categoryName },
+      create: wc,
     });
   }
   console.log(`✓ Seeded ${WO_CATEGORIES.length} WO Categories`);
 
   // 9. Statuses
   for (const st of STATUSES) {
-    await prisma.mstStatus.create({
-      data: st,
+    await prisma.mstStatus.upsert({
+      where: { statusCode: st.statusCode },
+      update: { statusName: st.statusName },
+      create: st,
     });
   }
   console.log(`✓ Seeded ${STATUSES.length} Statuses`);
 
   // 10. Priorities
   for (const pr of PRIORITIES) {
-    await prisma.mstPriority.create({
-      data: pr,
+    await prisma.mstPriority.upsert({
+      where: { priorityCode: pr.priorityCode },
+      update: { priorityName: pr.priorityName, level: pr.level },
+      create: pr,
     });
   }
   console.log(`✓ Seeded ${PRIORITIES.length} Priorities`);

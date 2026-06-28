@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Define the base URL for your local backend server
 const baseURL = 'http://localhost:3001/api';
+// The backend server runs on port 5000.
+const baseURL = 'http://localhost:5000/api';
 
 const apiClient = axios.create({
     baseURL,

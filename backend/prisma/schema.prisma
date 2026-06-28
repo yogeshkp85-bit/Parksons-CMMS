@@ -202,7 +202,6 @@ model Machine {
   subMachines   Machine[]       @relation("MachineHierarchy")
   subAssemblies SubAssembly[]
   breakdowns    BreakdownLog[]
-  pmSchedules   PmSchedule[]
 
   @@map("machines")
 }
@@ -500,7 +499,7 @@ model PmTask {
 model PmSchedule {
   id                String    @id @default(uuid()) @db.Uuid
   machineId         String    @map("machine_id") @db.Uuid
-  pmTaskId          String    @map("pm_task_id") @db.Uuid
+  pmTaskId          String?   @map("pm_task_id") @db.Uuid
   dueDate           DateTime  @map("due_date")
   status            String    @default("PENDING")
   completedAt       DateTime? @map("completed_at")
@@ -512,8 +511,8 @@ model PmSchedule {
   updatedAt         DateTime  @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")
 
-  machine     Machine @relation(fields: [machineId], references: [id])
-  pmTask      PmTask  @relation(fields: [pmTaskId], references: [id])
+  machine     MstMachine @relation(fields: [machineId], references: [machineId])
+  pmTask      PmTask? @relation(fields: [pmTaskId], references: [id])
   completedBy User?   @relation("PmCompletedBy", fields: [completedByUserId], references: [id])
 
   @@map("pm_schedules")
@@ -659,6 +658,9 @@ model RawData {
   Submitted_By   String?
   Remarks        String?
   Status         String?   @default("PENDING_REVIEW")
+  Problem_Reported String?
+  Spare_Consumed   String?
+  Additional_Team  String?
 
   @@map("raw_data")
 }
@@ -773,6 +775,7 @@ model MstDepartment {
   machineTypes MstMachineType[]
   pmTasks      PmTask[]
 
+  @@unique([plantId, deptCode])
   @@map("mst_department")
 }
 
@@ -790,6 +793,7 @@ model MstMachineType {
   machines   MstMachine[]
   pmTasks    PmTask[]
 
+  @@unique([deptId, typeCode])
   @@map("mst_machine_type")
 }
 
@@ -809,7 +813,9 @@ model MstMachine {
   plant       MstPlant         @relation(fields: [plantId], references: [plantId])
   units       MstMachineUnit[]
   pmTasks     PmTask[]
+  pmSchedules PmSchedule[]
 
+  @@unique([plantId, machineCode])
   @@map("mst_machine")
 }
 
@@ -829,6 +835,7 @@ model MstMachineUnit {
   subUnits   MstMachineUnit[] @relation("UnitHierarchy")
   pmTasks    PmTask[]
 
+  @@unique([machineId, unitCode])
   @@map("mst_machine_unit")
 }
 
@@ -868,6 +875,7 @@ model MstProblemType {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
+  @@unique([typeCode])
   @@map("mst_problem_type")
 }
 
@@ -879,6 +887,7 @@ model MstWoCategory {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
+  @@unique([categoryCode])
   @@map("mst_wo_category")
 }
 
@@ -890,6 +899,7 @@ model MstStatus {
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
 
+  @@unique([statusCode])
   @@map("mst_status")
 }
 
@@ -902,6 +912,7 @@ model MstPriority {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
+  @@unique([priorityCode])
   @@map("mst_priority")
 }
 

@@ -31,6 +31,9 @@ export class BreakdownRepository {
       attendedBy: row.Attended_By || '',
       submittedBy: row.Submitted_By || '',
       remarks: row.Remarks || '',
+      problemReported: row.Problem_Reported || '',
+      spareConsumed: row.Spare_Consumed || '',
+      additionalTeam: row.Additional_Team || '',
       status: row.Status || 'PENDING_REVIEW'
     }));
   }
@@ -60,6 +63,9 @@ export class BreakdownRepository {
         Attended_By: data.attendedBy,
         Submitted_By: data.submittedBy,
         Remarks: data.remarks,
+        Problem_Reported: data.problemReported,
+        Spare_Consumed: data.spareConsumed,
+        Additional_Team: data.additionalTeam,
         Status: 'PENDING_REVIEW'
       }
     });
@@ -87,6 +93,9 @@ export class BreakdownRepository {
     if (data.duration !== undefined) updatePayload.Duration_Min = parseFloat(data.duration);
     if (data.attendedBy !== undefined) updatePayload.Attended_By = data.attendedBy;
     if (data.remarks !== undefined) updatePayload.Remarks = data.remarks;
+    if (data.problemReported !== undefined) updatePayload.Problem_Reported = data.problemReported;
+    if (data.spareConsumed !== undefined) updatePayload.Spare_Consumed = data.spareConsumed;
+    if (data.additionalTeam !== undefined) updatePayload.Additional_Team = data.additionalTeam;
 
     return await prisma.rawData.update({
       where: { Ref_ID: refId },

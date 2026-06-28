@@ -72,6 +72,9 @@ export class RawDataSyncService {
             Attended_By: record['Attended_By'] || '',
             Submitted_By: record['Submitted_By'] || '',
             Remarks: record['Remarks'] || '',
+            Problem_Reported: record['Problem_Reported'] || '',
+            Spare_Consumed: record['Spare_Consumed'] || '',
+            Additional_Team: record['Additional_Team'] || '',
             Status: record['Status'] || ''
         };
 

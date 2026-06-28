@@ -9,21 +9,22 @@ export const PMSchedule: React.FC = () => {
   // Execution Modal (for completing a schedule)
   const [activeSchedule, setActiveSchedule] = useState<any | null>(null);
   const [remarks, setRemarks] = useState('');
+  const [completedAt, setCompletedAt] = useState('');
   const [checklist, setChecklist] = useState<{item: string, passed: boolean | null, notes: string}[]>([]);
 
   // CRUD Modals State (for managing schedules)
   const [isCrudModalOpen, setIsCrudModalOpen] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [crudFormData, setCrudFormData] = useState({
+    departmentId: '',
     machineId: '',
-    pmTaskId: '',
-    dueDate: '',
+    dueDates: [new Date().toISOString().split('T')[0]], // Array of dates
     status: 'PENDING'
   });
 
   // Reference Data Lists
+  const [departments, setDepartments] = useState<any[]>([]);
   const [machines, setMachines] = useState<any[]>([]);
-  const [tasks, setTasks] = useState<any[]>([]);
 
   useEffect(() => {
     fetchSchedules();
@@ -46,12 +47,25 @@ export const PMSchedule: React.FC = () => {
 
   const fetchReferenceData = async () => {
     try {
-      const [machinesRes, tasksRes] = await Promise.all([
-        api.get('/v1/masters/dropdowns/mst_machine'),
-        api.get('/pm/tasks')
-      ]);
-      setMachines(machinesRes.data?.data || []);
-      setTasks(Array.isArray(tasksRes.data) ? tasksRes.data : tasksRes.data?.data || []);
+      const treeRes = await api.get('/v1/mdm/equipment-tree');
+      const plants = treeRes.data?.data || [];
+      
+      const depts: any[] = [];
+      const machs: any[] = [];
+      
+      plants.forEach((p: any) => {
+        p.departments?.forEach((d: any) => {
+          depts.push({ id: d.deptId, name: d.deptName });
+          d.machineTypes?.forEach((mt: any) => {
+            mt.machines?.forEach((m: any) => {
+              machs.push({ id: m.machineId, name: m.machineName, departmentId: d.deptId });
+            });
+          });
+        });
+      });
+      
+      setDepartments(depts);
+      setMachines(machs);
     } catch (err) {
       console.error('Failed to load reference lists:', err);
     }
@@ -60,6 +74,7 @@ export const PMSchedule: React.FC = () => {
   const openExecuteModal = (schedule: any) => {
     setActiveSchedule(schedule);
     setRemarks('');
+    setCompletedAt(new Date().toISOString().split('T')[0]);
     
     // Parse checkpoints
     const cpString = schedule.pmTask?.checkpoints || '';
@@ -91,11 +106,13 @@ export const PMSchedule: React.FC = () => {
     try {
       await api.put(`/pm/schedules/${activeSchedule.id}/complete`, {
         completionRemarks: remarks,
-        checkpointsResult: checklist
+        checkpointsResult: checklist,
+        completedAt: completedAt ? new Date(completedAt).toISOString() : new Date().toISOString()
       });
       alert('PM Schedule completed successfully');
       setActiveSchedule(null);
       setRemarks('');
+      setCompletedAt('');
       setChecklist([]);
       fetchSchedules();
     } catch (err) {
@@ -107,9 +124,9 @@ export const PMSchedule: React.FC = () => {
   const handleOpenAddModal = () => {
     setEditingScheduleId(null);
     setCrudFormData({
+      departmentId: '',
       machineId: '',
-      pmTaskId: '',
-      dueDate: new Date().toISOString().split('T')[0],
+      dueDates: [new Date().toISOString().split('T')[0]],
       status: 'PENDING'
     });
     setIsCrudModalOpen(true);
@@ -117,10 +134,11 @@ export const PMSchedule: React.FC = () => {
 
   const handleOpenEditModal = (schedule: any) => {
     setEditingScheduleId(schedule.id);
+    
     setCrudFormData({
+      departmentId: '',
       machineId: schedule.machineId || '',
-      pmTaskId: schedule.pmTaskId || '',
-      dueDate: schedule.dueDate ? new Date(schedule.dueDate).toISOString().split('T')[0] : '',
+      dueDates: schedule.dueDate ? [new Date(schedule.dueDate).toISOString().split('T')[0]] : [],
       status: schedule.status || 'PENDING'
     });
     setIsCrudModalOpen(true);
@@ -128,13 +146,25 @@ export const PMSchedule: React.FC = () => {
 
   const handleCrudSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (crudFormData.dueDates.length === 0) {
+      alert('Please add at least one due date.');
+      return;
+    }
+    
     try {
+      const payload = {
+        machineId: crudFormData.machineId,
+        status: crudFormData.status,
+        dueDates: crudFormData.dueDates,
+        dueDate: crudFormData.dueDates[0] // fallback for edit
+      };
+
       if (editingScheduleId) {
-        await api.put(`/pm/schedules/${editingScheduleId}`, crudFormData);
+        await api.put(`/pm/schedules/${editingScheduleId}`, payload);
         alert('PM Schedule updated successfully');
       } else {
-        await api.post('/pm/schedules', crudFormData);
-        alert('PM Schedule added successfully');
+        await api.post('/pm/schedules', payload);
+        alert('PM Schedule(s) added successfully');
       }
       setIsCrudModalOpen(false);
       fetchSchedules();
@@ -142,6 +172,13 @@ export const PMSchedule: React.FC = () => {
       alert('Failed to save PM schedule');
     }
   };
+
+  const handleCloseModal = () => setIsCrudModalOpen(false);
+
+  // Filter machines based on selected department
+  const filteredMachines = crudFormData.departmentId 
+    ? machines.filter(m => m.departmentId === crudFormData.departmentId)
+    : machines;
 
   const handleDeleteSchedule = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this PM Schedule?')) return;
@@ -193,8 +230,14 @@ export const PMSchedule: React.FC = () => {
                     <div className="text-xs text-gray-500 font-mono">{s.machine?.machineCode || s.machine?.code}</div>
                   </td>
                   <td className="p-4 text-gray-300">
-                    <div>{s.pmTask?.name}</div>
-                    <div className="text-[10px] text-cyan-400">{s.pmTask?.frequency?.name}</div>
+                    {s.pmTask ? (
+                      <>
+                        <div>{s.pmTask?.name}</div>
+                        <div className="text-[10px] text-cyan-400">{s.pmTask?.frequency?.name}</div>
+                      </>
+                    ) : (
+                      <div className="text-gray-400 italic text-xs">General Machine PM</div>
+                    )}
                   </td>
                   <td className="p-4 text-gray-400">
                     <div className="flex items-center gap-1"><CalendarDays size={14}/> {new Date(s.dueDate).toLocaleDateString()}</div>
@@ -287,10 +330,20 @@ export const PMSchedule: React.FC = () => {
                 </div>
               )}
               
-              <div>
-                <label className="text-xs font-semibold text-gray-400 block mb-1">Completion Remarks</label>
-                <textarea 
+              <div className="flex flex-col gap-1.5 mt-4">
+                <label className="text-xs font-semibold text-gray-400">Completion Date *</label>
+                <input
+                  type="date"
                   required
+                  value={completedAt}
+                  onChange={e => setCompletedAt(e.target.value)}
+                  className="glass-input w-full px-3 py-2 rounded-lg text-sm text-gray-200 bg-[#1e293b]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-400 block mb-1">Completion Remarks (Optional)</label>
+                <textarea 
                   value={remarks}
                   onChange={e => setRemarks(e.target.value)}
                   className="glass-input w-full px-3 py-2 rounded-lg text-sm text-gray-200" 
@@ -319,18 +372,18 @@ export const PMSchedule: React.FC = () => {
             </h3>
             
             <form onSubmit={handleCrudSubmit} className="space-y-4">
-              {/* Select PM Task */}
+              
+              {/* Select Department */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-gray-400">PM Task *</label>
+                <label className="text-xs font-semibold text-gray-400">Department</label>
                 <select
-                  required
-                  value={crudFormData.pmTaskId}
-                  onChange={e => setCrudFormData({ ...crudFormData, pmTaskId: e.target.value })}
+                  value={crudFormData.departmentId}
+                  onChange={e => setCrudFormData({ ...crudFormData, departmentId: e.target.value, machineId: '' })}
                   className="glass-input w-full px-3 py-2 rounded-lg text-xs text-gray-200 bg-[#0f172a]"
                 >
-                  <option value="">Select Task...</option>
-                  {tasks.map(t => (
-                    <option key={t.id} value={t.id}>{t.name} ({t.frequency?.name})</option>
+                  <option value="">Select Department...</option>
+                  {departments.map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
               </div>
@@ -343,24 +396,61 @@ export const PMSchedule: React.FC = () => {
                   value={crudFormData.machineId}
                   onChange={e => setCrudFormData({ ...crudFormData, machineId: e.target.value })}
                   className="glass-input w-full px-3 py-2 rounded-lg text-xs text-gray-200 bg-[#0f172a]"
+                  disabled={!crudFormData.departmentId && !editingScheduleId}
                 >
                   <option value="">Select Machine...</option>
-                  {machines.map(m => (
+                  {(editingScheduleId ? machines : filteredMachines).map(m => (
                     <option key={m.id} value={m.id}>{m.name}</option>
                   ))}
                 </select>
               </div>
 
-              {/* Due Date */}
+              {/* Due Dates (Multi-Select) */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-gray-400">Due Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={crudFormData.dueDate}
-                  onChange={e => setCrudFormData({ ...crudFormData, dueDate: e.target.value })}
-                  className="glass-input w-full px-3 py-2 rounded-lg text-xs text-gray-200 bg-[#0f172a]"
-                />
+                <label className="text-xs font-semibold text-gray-400">Due Date(s) *</label>
+                <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-2">
+                  {crudFormData.dueDates.map((date, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        required
+                        value={date}
+                        onChange={e => {
+                          const newDates = [...crudFormData.dueDates];
+                          newDates[idx] = e.target.value;
+                          setCrudFormData({ ...crudFormData, dueDates: newDates });
+                        }}
+                        className="glass-input flex-1 px-3 py-2 rounded-lg text-xs text-gray-200 bg-[#0f172a]"
+                      />
+                      {crudFormData.dueDates.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newDates = crudFormData.dueDates.filter((_, i) => i !== idx);
+                            setCrudFormData({ ...crudFormData, dueDates: newDates });
+                          }}
+                          className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {!editingScheduleId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCrudFormData({ 
+                        ...crudFormData, 
+                        dueDates: [...crudFormData.dueDates, new Date().toISOString().split('T')[0]] 
+                      });
+                    }}
+                    className="text-xs text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1 mt-1 cursor-pointer w-max"
+                  >
+                    <Plus size={12} /> Add another date
+                  </button>
+                )}
               </div>
 
               {/* Status */}

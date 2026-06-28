@@ -4,10 +4,16 @@ import { PMSchedule } from './PMSchedule';
 import { PMHistory } from './PMHistory';
 import { PMFrequencies } from './PMFrequencies';
 import { PMCompliance } from './PMCompliance';
-import { Wrench, Calendar, History, ShieldAlert, Clock, Activity } from 'lucide-react';
+import { PMCalendar } from './PMCalendar';
+import { Wrench, Calendar, History, ShieldAlert, Clock, Activity, CalendarDays } from 'lucide-react';
+
+import { useAuth } from '../../context/AuthContext';
 
 export const PMIndex: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'schedules' | 'master' | 'history' | 'frequencies' | 'compliance'>('schedules');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'schedules' | 'master' | 'history' | 'frequencies' | 'compliance' | 'calendar'>('schedules');
+  
+  const isTechnician = user?.role?.code === 'technician';
 
   return (
     <div className="space-y-6">
@@ -20,14 +26,34 @@ export const PMIndex: React.FC = () => {
         >
           <Calendar size={18} /> Active Schedules
         </button>
-        <button 
-          onClick={() => setActiveTab('master')}
-          className={`flex items-center gap-2 px-6 py-4 font-medium text-sm transition-all border-b-2 ${
-            activeTab === 'master' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-gray-400 hover:text-white hover:border-white/20'
-          }`}
-        >
-          <Wrench size={18} /> Task Master
-        </button>
+        {!isTechnician && (
+          <>
+            <button 
+              onClick={() => setActiveTab('master')}
+              className={`flex items-center gap-2 px-6 py-4 font-medium text-sm transition-all border-b-2 ${
+                activeTab === 'master' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-gray-400 hover:text-white hover:border-white/20'
+              }`}
+            >
+              <Wrench size={18} /> Task Master
+            </button>
+            <button
+              onClick={() => setActiveTab('frequencies')}
+              className={`flex items-center gap-2 px-6 py-4 font-medium text-sm transition-all border-b-2 ${
+                activeTab === 'frequencies' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-gray-400 hover:text-white hover:border-white/20'
+              }`}
+            >
+              <Clock size={18} /> Frequencies
+            </button>
+            <button
+              onClick={() => setActiveTab('compliance')}
+              className={`flex items-center gap-2 px-6 py-4 font-medium text-sm transition-all border-b-2 ${
+                activeTab === 'compliance' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-gray-400 hover:text-white hover:border-white/20'
+              }`}
+            >
+              <Activity size={18} /> Compliance
+            </button>
+          </>
+        )}
         <button 
           onClick={() => setActiveTab('history')}
           className={`flex items-center gap-2 px-6 py-4 font-medium text-sm transition-all border-b-2 ${
@@ -37,20 +63,12 @@ export const PMIndex: React.FC = () => {
           <History size={18} /> History
         </button>
         <button
-          onClick={() => setActiveTab('frequencies')}
+          onClick={() => setActiveTab('calendar')}
           className={`flex items-center gap-2 px-6 py-4 font-medium text-sm transition-all border-b-2 ${
-            activeTab === 'frequencies' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-gray-400 hover:text-white hover:border-white/20'
+            activeTab === 'calendar' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-gray-400 hover:text-white hover:border-white/20'
           }`}
         >
-          <Clock size={18} /> Frequencies
-        </button>
-        <button
-          onClick={() => setActiveTab('compliance')}
-          className={`flex items-center gap-2 px-6 py-4 font-medium text-sm transition-all border-b-2 ${
-            activeTab === 'compliance' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-gray-400 hover:text-white hover:border-white/20'
-          }`}
-        >
-          <Activity size={18} /> Compliance
+          <CalendarDays size={18} /> Calendar
         </button>
       </div>
 
@@ -60,6 +78,7 @@ export const PMIndex: React.FC = () => {
         {activeTab === 'history' && <PMHistory />}
         {activeTab === 'frequencies' && <PMFrequencies />}
         {activeTab === 'compliance' && <PMCompliance />}
+        {activeTab === 'calendar' && <PMCalendar />}
       </div>
     </div>
   );

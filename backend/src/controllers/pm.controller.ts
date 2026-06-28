@@ -122,13 +122,13 @@ export const pmController = {
   async completeSchedule(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { completionRemarks, checkpointsResult, imageUrl } = req.body;
+      const { completionRemarks, checkpointsResult, imageUrl, completedAt } = req.body;
       
       const schedule = await prisma.pmSchedule.update({
         where: { id },
         data: {
           status: 'COMPLETED',
-          completedAt: new Date(),
+          completedAt: completedAt ? new Date(completedAt) : new Date(),
           completedByUserId: (req as any).user?.id || null, 
           completionRemarks,
           checkpointsResult,
@@ -186,8 +186,42 @@ export const pmController = {
 
   async getCompliance(req: Request, res: Response) {
     try {
+      const { departmentId, machineId, month, year } = req.query;
+
+      let whereClause: any = { deletedAt: null };
+
+      // Filter by machine
+      if (machineId) {
+        whereClause.machineId = String(machineId);
+      } else if (departmentId) {
+        // Filter by department (machineType -> deptId)
+        whereClause.machine = {
+          machineType: {
+            deptId: String(departmentId)
+          }
+        };
+      }
+
+      // Filter by date
+      if (month && year) {
+        const m = parseInt(String(month), 10);
+        const y = parseInt(String(year), 10);
+        const startDate = new Date(y, m - 1, 1);
+        const endDate = new Date(y, m, 0, 23, 59, 59, 999);
+        whereClause.dueDate = {
+          gte: startDate,
+          lte: endDate
+        };
+      }
+
       const schedules = await prisma.pmSchedule.findMany({
-        where: { deletedAt: null }
+        where: whereClause,
+        include: {
+          machine: true,
+          pmTask: {
+            include: { frequency: true }
+          }
+        }
       });
 
       const total = schedules.length;
@@ -207,7 +241,7 @@ export const pmController = {
           pending,
           overdue,
           complianceRate: Math.round(complianceRate * 10) / 10,
-          schedules // for chart breakdowns
+          schedules // for chart breakdowns and export
         }
       });
     } catch (err: any) {
@@ -217,11 +251,32 @@ export const pmController = {
 
   async createSchedule(req: Request, res: Response) {
     try {
-      const { machineId, pmTaskId, dueDate, status, completedByUserId, completionRemarks, checkpointsResult } = req.body;
+      const { machineId, pmTaskId, dueDate, dueDates, status, completedByUserId, completionRemarks, checkpointsResult } = req.body;
+      
+      if (dueDates && Array.isArray(dueDates)) {
+        const schedules = await Promise.all(
+          dueDates.map(date => 
+            prisma.pmSchedule.create({
+              data: {
+                machineId,
+                pmTaskId: pmTaskId || null,
+                dueDate: new Date(date),
+                status: status || 'PENDING',
+                completedByUserId: completedByUserId || null,
+                completionRemarks: completionRemarks || null,
+                checkpointsResult: checkpointsResult || null
+              }
+            })
+          )
+        );
+        return res.json({ success: true, count: schedules.length, data: schedules });
+      }
+
+      // Fallback for single dueDate
       const schedule = await prisma.pmSchedule.create({
         data: {
           machineId,
-          pmTaskId,
+          pmTaskId: pmTaskId || null,
           dueDate: new Date(dueDate),
           status: status || 'PENDING',
           completedByUserId: completedByUserId || null,

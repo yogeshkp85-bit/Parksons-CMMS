@@ -102,20 +102,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const checkSession = async () => {
     try {
       const storedUser = localStorage.getItem('cmms_user');
-      if (storedUser) {
+      const storedToken = localStorage.getItem('cmms_token');
+      
+      if (storedUser && storedToken) {
         const parsedUser = JSON.parse(storedUser);
         const mapped = mapLevelToRoleAndPermissions(parsedUser.role?.code || 'viewer', parsedUser.permissions);
         setUser(parsedUser);
         setPermissions(mapped.permissions);
-        try {
-          const refreshRes = await api.post('/auth/refresh');
-          if (refreshRes.data?.data?.token) {
-            setAccessToken(refreshRes.data.data.token);
-            setAccessTokenState(refreshRes.data.data.token);
-          }
-        } catch {
-          handleLogoutCleanup();
-        }
+        setAccessToken(storedToken);
+        setAccessTokenState(storedToken);
       } else {
         handleLogoutCleanup();
       }
@@ -145,6 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
 
         localStorage.setItem('cmms_user', JSON.stringify(fullUser));
+        localStorage.setItem('cmms_token', token);
         setAccessToken(token);
         setAccessTokenState(token);
         setUser(fullUser);
