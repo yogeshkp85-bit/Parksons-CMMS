@@ -257,7 +257,11 @@ export default function MasterTable({
                             ? (record[f.key] ? <CheckCircle size={13} className="text-emerald-400" /> : <XCircle size={13} className="text-gray-600" />)
                             : f.type === 'date' && record[f.key]
                               ? new Date(record[f.key]).toLocaleDateString('en-IN')
-                              : String(record[f.key] ?? '—')}
+                              : f.key === 'id' || (typeof record[f.key] === 'string' && record[f.key].length === 36 && record[f.key].includes('-') && f.key.toLowerCase().includes('id'))
+                                ? <span className="font-mono text-[10px] text-gray-600" title={record[f.key]}>
+                                    {String(record[f.key]).substring(0, 8)}...
+                                  </span>
+                                : String(record[f.key] ?? '—')}
                         </td>
                       ))}
                       <td className="py-3 px-4 text-right">

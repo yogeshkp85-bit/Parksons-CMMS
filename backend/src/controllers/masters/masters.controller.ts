@@ -42,29 +42,23 @@ export async function listMaster(req: Request, res: Response) {
     return res.status(400).json({ status: 'error', message: `Unknown master: ${model}` });
   }
   try {
-    const records = await getModel(model).findMany({
-      where: { deletedAt: null },
-      orderBy: [
-        { displayOrder: 'asc' },
-        { name: 'asc' },
-      ].filter((o: any) => {
-        // Not all models have displayOrder — filter gracefully
-        return true;
-      }),
-    });
-    return res.json({ status: 'success', data: records, count: records.length });
-  } catch (err: any) {
-    // If displayOrder doesn't exist on this model, retry without it
+    // Try with displayOrder first, fall back to name-only sort
+    let records: any[];
     try {
-      const records = await getModel(model).findMany({
+      records = await getModel(model).findMany({
+        where: { isActive: true, deletedAt: null },
+        orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+      });
+    } catch {
+      records = await getModel(model).findMany({
         where: { isActive: true },
         orderBy: { name: 'asc' },
       });
-      return res.json({ status: 'success', data: records, count: records.length });
-    } catch (err2: any) {
-      logger.error(`[Masters] listMaster error for ${model}:`, err2.message);
-      return res.status(500).json({ status: 'error', message: err2.message });
     }
+    return res.json({ status: 'success', data: records, count: records.length });
+  } catch (err: any) {
+    logger.error(`[Masters] listMaster error for ${model}:`, err.message);
+    return res.status(500).json({ status: 'error', message: err.message });
   }
 }
 
@@ -86,20 +80,42 @@ export async function getMaster(req: Request, res: Response) {
   }
 }
 
-/** POST /masters/:model — create new record */
+/** POST /masters/:model — create new record (upsert by code when code provided) */
 export async function createMaster(req: Request, res: Response) {
   const model = req.params.model as MasterModel;
   if (!MODEL_LABELS[model]) {
     return res.status(400).json({ status: 'error', message: `Unknown master: ${model}` });
   }
   try {
-    const record = await getModel(model).create({ data: req.body });
-    logger.info(`[Masters] Created ${model}: ${record.name || record.code || record.id}`);
+    const body = req.body;
+    // If a unique 'code' field is provided, use upsert to avoid duplicate errors
+    // This handles re-seeding and re-adding records gracefully
+    let record: any;
+    if (body.code) {
+      try {
+        record = await getModel(model).upsert({
+          where: { code: body.code },
+          update: { ...body, updatedAt: new Date() },
+          create: body,
+        });
+      } catch {
+        // Model may not have 'code' as unique — fall through to create
+        record = await getModel(model).create({ data: body });
+      }
+    } else {
+      record = await getModel(model).create({ data: body });
+    }
+    logger.info(`[Masters] Created/updated ${model}: ${record.name || record.code || record.id}`);
     return res.status(201).json({ status: 'success', data: record });
   } catch (err: any) {
     if (err.code === 'P2002') {
-      return res.status(409).json({ status: 'error', message: `A ${MODEL_LABELS[model]} with this code/name already exists` });
+      const fields = err.meta?.target?.join(', ') || 'code/name';
+      return res.status(409).json({
+        status: 'error',
+        message: `A ${MODEL_LABELS[model]} with this ${fields} already exists in the database. Use a different code or name, or edit the existing record instead.`
+      });
     }
+    logger.error(`[Masters] createMaster error for ${model}:`, err.message);
     return res.status(500).json({ status: 'error', message: err.message });
   }
 }

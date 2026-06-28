@@ -55,20 +55,38 @@ export const PMMaster: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [taskRes, freqRes, plantsRes, deptsRes, sectionsRes, typeRes, machRes, unitsRes] = await Promise.all([
+      const [taskRes, freqRes, hierarchyRes, plantsRes, deptsRes] = await Promise.all([
         api.get('/pm/tasks'),
         api.get('/pm/frequencies'),
-        api.get('/masters/machines/hierarchy'),  // Dept→Machine→Unit hierarchy
+        api.get('/masters/machines/hierarchy'),   // { PRINTING: { PrintKBA1: { id, units:[...] } } }
+        api.get('/masters/plant'),                // Plant list
+        api.get('/masters/department'),           // Department list
       ]);
 
       setTasks(Array.isArray(taskRes.data) ? taskRes.data : taskRes.data?.data || []);
       setFrequencies(Array.isArray(freqRes.data) ? freqRes.data : freqRes.data?.data || []);
+
+      // Parse hierarchy into flat lists for cascading dropdowns
+      const hierarchy = hierarchyRes.data?.data || {};
+      const deptList: any[] = [];
+      const machList: any[] = [];
+      const unitList: any[] = [];
+
+      Object.entries(hierarchy).forEach(([deptName, machinesObj]: [string, any]) => {
+        deptList.push({ deptId: deptName, deptName });
+        Object.entries(machinesObj).forEach(([machineName, machData]: [string, any]) => {
+          machList.push({ machineId: machData.id, machineName, departmentName: deptName });
+          (machData.units || []).forEach((u: any) => {
+            unitList.push({ unitId: u.id, unitName: u.name, machineId: machData.id });
+          });
+        });
+      });
+
+      setDepartments(deptList);
+      setMachines(machList);
+      setMachineUnits(unitList);
       setPlants(plantsRes.data?.data || []);
-      setDepartments(deptsRes.data?.data || []);
-      setSections(sectionsRes.data?.data || []);
-      setMachineTypes(typeRes.data?.data || []);
-      // machineHierarchy = hierarchyRes.data?.data || {}
-      setMachineUnits(unitsRes.data?.data || []);
+      setSections(deptsRes.data?.data || []);   // reuse sections state for dept display
     } catch (err) {
       console.error('Failed to load PM Master Data', err);
     } finally {
@@ -182,15 +200,15 @@ export const PMMaster: React.FC = () => {
     }
   };
 
-  // Cascading Filter lists
-  const filteredDepartments = departments.filter(d => !formData.plantId || d.plantId === formData.plantId);
-  const filteredMachineTypes = machineTypes.filter(mt => !formData.departmentId || mt.deptId === formData.departmentId);
-  const filteredMachines = machines.filter(m => {
-    if (formData.plantId && m.plantId !== formData.plantId) return false;
-    if (formData.machineTypeId && m.machineTypeId !== formData.machineTypeId) return false;
-    return true;
-  });
-  const filteredUnits = machineUnits.filter(u => !formData.machineId || u.machineId === formData.machineId);
+  // Cascading Filter lists (driven by hierarchy API)
+  const filteredDepartments = departments;  // All departments (plant filter future)
+  const filteredMachineTypes = departments; // Reuse — machine type = department in our hierarchy
+  const filteredMachines = machines.filter(m =>
+    !formData.departmentId || m.departmentName === formData.departmentId
+  );
+  const filteredUnits = machineUnits.filter(u =>
+    !formData.machineId || u.machineId === formData.machineId
+  );
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -276,7 +294,7 @@ export const PMMaster: React.FC = () => {
                 <label className="text-xs font-semibold text-gray-400">Plant</label>
                 <select value={formData.plantId} onChange={e => setFormData({...formData, plantId: e.target.value, departmentId: '', machineId: ''})} className="glass-input w-full px-3 py-2 rounded-lg text-xs text-gray-200 bg-[#0b0f19]">
                   <option value="">All Plants</option>
-                  {plants.map(p => <option key={p.plantId} value={p.plantId}>{p.plantName}</option>)}
+                  {plants.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
 
@@ -285,7 +303,7 @@ export const PMMaster: React.FC = () => {
                 <label className="text-xs font-semibold text-gray-400">Department</label>
                 <select value={formData.departmentId} onChange={e => setFormData({...formData, departmentId: e.target.value, machineTypeId: ''})} className="glass-input w-full px-3 py-2 rounded-lg text-xs text-gray-200 bg-[#0b0f19]">
                   <option value="">All Departments</option>
-                  {filteredDepartments.map(d => <option key={d.deptId} value={d.deptId}>{d.deptName}</option>)}
+                  {filteredDepartments.map((d: any) => <option key={d.deptId} value={d.deptId}>{d.deptName}</option>)}
                 </select>
               </div>
 
@@ -293,8 +311,8 @@ export const PMMaster: React.FC = () => {
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-gray-400">Machine Type</label>
                 <select value={formData.machineTypeId} onChange={e => setFormData({...formData, machineTypeId: e.target.value, machineId: ''})} className="glass-input w-full px-3 py-2 rounded-lg text-xs text-gray-200 bg-[#0b0f19]">
-                  <option value="">All Machine Types</option>
-                  {filteredMachineTypes.map(mt => <option key={mt.machineTypeId} value={mt.machineTypeId}>{mt.typeName}</option>)}
+                  <option value="">Select Department First</option>
+                  {filteredMachineTypes.map((d: any) => <option key={d.deptId} value={d.deptId}>{d.deptName}</option>)}
                 </select>
               </div>
 
@@ -303,7 +321,7 @@ export const PMMaster: React.FC = () => {
                 <label className="text-xs font-semibold text-gray-400">Machine</label>
                 <select value={formData.machineId} onChange={e => setFormData({...formData, machineId: e.target.value, unitId: ''})} className="glass-input w-full px-3 py-2 rounded-lg text-xs text-gray-200 bg-[#0b0f19]">
                   <option value="">All Machines</option>
-                  {filteredMachines.map(m => <option key={m.machineId} value={m.machineId}>{m.machineName}</option>)}
+                  {filteredMachines.map((m: any) => <option key={m.machineId} value={m.machineId}>{m.machineName}</option>)}
                 </select>
               </div>
 
@@ -312,7 +330,7 @@ export const PMMaster: React.FC = () => {
                 <label className="text-xs font-semibold text-gray-400">Machine Unit</label>
                 <select value={formData.unitId} onChange={e => setFormData({...formData, unitId: e.target.value})} className="glass-input w-full px-3 py-2 rounded-lg text-xs text-gray-200 bg-[#0b0f19]">
                   <option value="">All Units</option>
-                  {filteredUnits.map(u => <option key={u.unitId} value={u.unitId}>{u.unitName}</option>)}
+                  {filteredUnits.map((u: any) => <option key={u.unitId} value={u.unitId}>{u.unitName}</option>)}
                 </select>
               </div>
 
