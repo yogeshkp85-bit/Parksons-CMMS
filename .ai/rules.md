@@ -444,3 +444,22 @@ Performance
 Token efficiency
 
 Never sacrifice correctness merely to reduce AI token usage.
+
+---
+
+# PROJECT ROADMAP & ACTIVE DECISIONS
+
+### Current Active Phase: Work Order & Spare Parts Module (July 2026)
+
+#### 1. Workflow Decisions:
+- **Incident reporting flow**: Users (operators and production supervisors) log an `Incident`. Maintenance technicians review the incident, clock in (which creates the `WorkOrder`), perform work, classify the final issue details, and close the Work Order.
+- **Closing approval**: No supervisor approval is needed to close. The technician closes the Work Order directly.
+- **Direct entry mode fallback**: A configuration toggle (`WORK_ORDER_MODE_ENABLED`) will bypass this and run directly on `BreakdownLog`/`rawData` as per legacy.
+
+#### 2. Spare Parts Integration:
+- Standard catalog with stock levels and reorder alerts.
+- Formatted email request buttons for Spare Issues, Parts Orders, and External Repair Requests to alert ERP/Store.
+
+#### 3. Database additions:
+- Models: `Incident`, `WorkOrder`, `StockMovement`, `OutsideRepairLog`, `SystemSetting`
+
