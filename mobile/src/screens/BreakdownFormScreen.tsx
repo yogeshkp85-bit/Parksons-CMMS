@@ -1,447 +1,250 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Image } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import NetInfo from '@react-native-community/netinfo';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS, SIZES } from '../components/Theme';
+import { GlassCard, GlowButton, PremiumSelect, PremiumMultiSelect, PremiumInput } from '../components/premium';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { saveOfflineBreakdown, getCachedMachines, cacheMachines } from '../services/db';
-import { COLORS, TYPOGRAPHY } from '../components/Theme';
+import {
+  DEPARTMENTS,
+  getMachineNames,
+  getUnits,
+  TECHNICIANS,
+  SHIFTS,
+  PROBLEM_TYPES,
+  CATEGORIES,
+  detectCurrentShift,
+  isTimeValidForShift
+} from '../config/masterConfig';
+// Note: offlineQueue needs to be verified/adapted, but for now we'll do direct API call or mock it.
+// To keep it simple in this rewrite, we'll try online first.
 
-export default function BreakdownFormScreen({ route, navigation }: { route: any; navigation: any }) {
-  const scannedMachineName = route.params?.machineName || '';
-  const scannedMachineId = route.params?.machineId || '';
+export default function BreakdownFormScreen({ navigation }: any) {
+  const { user } = useAuth();
+  const initDetails = detectCurrentShift();
 
-  const [isOnline, setIsOnline] = useState(true);
-  const [machines, setMachines] = useState<any[]>([]);
-  const [selectedMachine, setSelectedMachine] = useState<any>(null);
-  const [shift, setShift] = useState('Shift A');
-  const [category, setCategory] = useState('Mechanical');
-  const [problemType, setProblemType] = useState('Gearbox Failure');
-  const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState('MEDIUM');
-  const [imageUri, setImageUri] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  // STATE: Section 1 (When)
+  const [date, setDate] = useState(initDetails.shiftDateStr);
+  const [shiftId, setShiftId] = useState(initDetails.shiftId);
+  const [timeStart, setTimeStart] = useState('');
+  const [dateEnd, setDateEnd] = useState(initDetails.shiftDateStr);
+  const [timeEnd, setTimeEnd] = useState('');
+  const [shiftError, setShiftError] = useState<string | null>(null);
 
-  // Network Monitoring & Machine Master Caching
+  // STATE: Section 2 (Machine)
+  const [departmentId, setDepartmentId] = useState('');
+  const [machineId, setMachineId] = useState('');
+  const [unitId, setUnitId] = useState('');
+  const [machineNames, setMachineNames] = useState<string[]>([]);
+  const [unitList, setUnitList] = useState<string[]>([]);
+
+  // STATE: Section 3 (Problem)
+  const [problemCategoryId, setProblemCategoryId] = useState(PROBLEM_TYPES[0]);
+  const [categoryId, setCategoryId] = useState(CATEGORIES[0]);
+  const [problemReported, setProblemReported] = useState('');
+  const [problemDescription, setProblemDescription] = useState('');
+  const [actionTaken, setActionTaken] = useState('');
+  const [rootCause, setRootCause] = useState('');
+
+  // STATE: Section 4 (People & Extras)
+  const [attendedBy, setAttendedBy] = useState('');
+  const [submittedBy, setSubmittedBy] = useState('');
+  const [spareConsumed, setSpareConsumed] = useState('');
+  const [additionalTeam, setAdditionalTeam] = useState<string[]>([]);
+  const [remarks, setRemarks] = useState('');
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Preselect user if technician
   useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener(state => {
-      setIsOnline(!!state.isConnected);
-    });
-    return () => unsubscribe();
+    if (user?.name) {
+      const match = TECHNICIANS.find(t => t.toLowerCase() === user.name.toLowerCase());
+      if (match) {
+        setSubmittedBy(match);
+        setAttendedBy(match);
+      }
+    }
+  }, [user]);
+
+  // Set current time for timeStart on mount
+  useEffect(() => {
+    const now = new Date();
+    setTimeStart(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`);
   }, []);
 
-  const loadMachines = async () => {
-    if (!isOnline) {
-      const cached = getCachedMachines();
-      setMachines(cached);
-      if (scannedMachineId) {
-        const found = cached.find(c => c.id === scannedMachineId || c.machineId === scannedMachineId);
-        if (found) setSelectedMachine(found);
-      }
-      return;
+  // Cascading Dropdowns
+  useEffect(() => {
+    if (departmentId) {
+      setMachineNames(getMachineNames(departmentId));
+      setMachineId('');
+      setUnitId('');
+      setUnitList([]);
     }
-
-    try {
-      const response = await api.get('/machines');
-      const data = Array.isArray(response.data) ? response.data : (response.data.data || []);
-      setMachines(data);
-      
-      // Cache locally in SQLite
-      const flatList = data.map((m: any) => ({
-        id: m.id,
-        machineId: m.machineId || m.id,
-        name: m.name,
-        category: m.category?.name || 'General',
-        units: m.units || '',
-      }));
-      cacheMachines(flatList);
-
-      if (scannedMachineId) {
-        const found = data.find((c: any) => c.id === scannedMachineId || c.machineId === scannedMachineId);
-        if (found) setSelectedMachine(found);
-      }
-    } catch (e) {
-      console.warn('Failed to load machines online, falling back to cache', e);
-      setMachines(getCachedMachines());
-    }
-  };
+  }, [departmentId]);
 
   useEffect(() => {
-    loadMachines();
-  }, [isOnline, scannedMachineId]);
-
-  const handlePickImage = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Camera access is required to take defect photos.');
-      return;
+    if (departmentId && machineId) {
+      const units = getUnits(departmentId, machineId);
+      setUnitList(units);
+      setUnitId('');
+      if (units.length === 1) setUnitId(units[0]);
     }
+  }, [machineId, departmentId]);
 
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.7,
-    });
-
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      setImageUri(result.assets[0].uri);
+  // Validators
+  const handleTimeStart = (val: string) => {
+    setTimeStart(val);
+    if (shiftId && val && !isTimeValidForShift(shiftId, val)) {
+      setShiftError(`Invalid time for selected shift.`);
+    } else {
+      setShiftError(null);
     }
   };
 
-  const handleChooseLibrary = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.7,
-    });
-
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      setImageUri(result.assets[0].uri);
+  const handleShiftChange = (val: string) => {
+    setShiftId(val);
+    if (timeStart && val && !isTimeValidForShift(val, timeStart)) {
+      setShiftError(`Invalid time for selected shift.`);
+    } else {
+      setShiftError(null);
     }
   };
+
+  const getCalculatedDuration = () => {
+    if (!date || !timeStart || !dateEnd || !timeEnd) return { txt: 'Enter all times', mins: 0 };
+    const s = new Date(`${date}T${timeStart}:00`).getTime();
+    const e = new Date(`${dateEnd}T${timeEnd}:00`).getTime();
+    const diff = Math.round((e - s) / 60000);
+    if (isNaN(diff) || diff <= 0) return { txt: 'Invalid timeframe', mins: 0 };
+    return { txt: `${diff} mins`, mins: diff };
+  };
+  const duration = getCalculatedDuration();
 
   const handleSubmit = async () => {
-    if (!selectedMachine && !scannedMachineName) {
-      Alert.alert('Validation Error', 'Please select a machine.');
+    if (!date || !shiftId || !timeStart || !dateEnd || !timeEnd || !departmentId || !machineId || !problemCategoryId || !categoryId || !attendedBy || !submittedBy || problemDescription.length < 5 || actionTaken.length < 5) {
+      Alert.alert('Validation Error', 'Please fill all required fields correctly.');
       return;
     }
-    if (!description) {
-      Alert.alert('Validation Error', 'Please describe the problem.');
+    if (unitList.length > 0 && !unitId) {
+      Alert.alert('Validation Error', 'Unit is required for this machine.');
       return;
     }
-
-    const machineName = selectedMachine ? selectedMachine.name : scannedMachineName;
-    const machineId = selectedMachine ? selectedMachine.id : scannedMachineId;
-
-    if (!isOnline) {
-      // Offline Flow: Save draft in SQLite
-      try {
-        const tempId = Math.random().toString(36).substring(7);
-        saveOfflineBreakdown({
-          id: tempId,
-          machineId: machineId || 'offline-machine',
-          machineName,
-          shift,
-          category,
-          problemType,
-          description,
-          priority,
-          imageUri,
-        });
-        Alert.alert('Saved Offline', 'Breakdown saved locally. It will auto-sync when network returns.', [
-          { text: 'OK', onPress: () => navigation.goBack() }
-        ]);
-      } catch (err: any) {
-        Alert.alert('Error', 'Failed to save breakdown locally.');
-      }
+    if (shiftError) {
+      Alert.alert('Validation Error', 'Please enter a valid start time for the selected shift.');
+      return;
+    }
+    if (duration.mins <= 0) {
+      Alert.alert('Validation Error', 'End time must be after start time.');
       return;
     }
 
-    // Online Flow: POST directly to server
-    setLoading(true);
+    setIsSubmitting(true);
     try {
-      const payload: any = {
-        machineName,
-        shift,
-        category,
-        problemType,
-        description,
-        priority,
-        timeStart: new Date().toISOString(),
+      const payload = {
+        date, shift: shiftId, machineType: departmentId, machineName: machineId, unit: unitId,
+        problemType: problemCategoryId, category: categoryId, problemReported, description: problemDescription,
+        actionTaken, rootCause, timeStart: timeStart.length === 5 ? `${timeStart}:00` : timeStart,
+        timeEnd: timeEnd.length === 5 ? `${timeEnd}:00` : timeEnd, dateEnd, durationMin: String(duration.mins),
+        attendedBy, additionalTeam: additionalTeam.join(', ') || null, submittedBy, spareConsumed, remarks
       };
-
-      if (imageUri) {
-        // Mock sending base64 or upload file if backend has attachment support
-        // In basic version we pass imageUri placeholder or upload
-        payload.imageUrl = imageUri;
-      }
-
-      await api.post('/breakdowns/create', payload);
-      Alert.alert('Success', 'Breakdown logged successfully.', [
+      const res = await api.post('/breakdowns/create', payload);
+      Alert.alert('Success', `Breakdown logged! Ref: ${res.data?.data?.refId || 'OK'}`, [
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
-    } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to submit breakdown.');
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.message || 'Failed to submit breakdown.');
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.title}>Log New Breakdown</Text>
-      
-      {/* Machine Name Box */}
-      <Text style={styles.label}>Machine</Text>
-      {scannedMachineName ? (
-        <View style={styles.scannedBox}>
-          <Text style={styles.scannedText}>Scanned: {scannedMachineName}</Text>
-        </View>
-      ) : (
-        <View style={styles.pickerContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {(Array.isArray(machines) ? machines : []).map((m) => (
-              <TouchableOpacity
-                key={m.id}
-                style={[
-                  styles.machineChip,
-                  selectedMachine?.id === m.id && styles.activeMachineChip
-                ]}
-                onPress={() => setSelectedMachine(m)}
-              >
-                <Text style={[
-                  styles.machineChipText,
-                  selectedMachine?.id === m.id && styles.activeMachineChipText
-                ]}>
-                  {m.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Shift Segment */}
-      <Text style={styles.label}>Shift</Text>
-      <View style={styles.tabsRow}>
-        {['Shift A', 'Shift B', 'Shift C'].map((s) => (
-          <TouchableOpacity
-            key={s}
-            style={[styles.tabButton, shift === s && styles.activeTabButton]}
-            onPress={() => setShift(s)}
-          >
-            <Text style={[styles.tabButtonText, shift === s && styles.activeTabButtonText]}>{s}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Priority Selection */}
-      <Text style={styles.label}>Priority</Text>
-      <View style={styles.tabsRow}>
-        {['LOW', 'MEDIUM', 'HIGH'].map((p) => (
-          <TouchableOpacity
-            key={p}
-            style={[
-              styles.tabButton,
-              priority === p && {
-                backgroundColor: p === 'HIGH' ? COLORS.danger : p === 'MEDIUM' ? COLORS.warning : COLORS.secondary
-              }
-            ]}
-            onPress={() => setPriority(p)}
-          >
-            <Text style={[styles.tabButtonText, priority === p && { color: '#FFFFFF', fontWeight: 'bold' }]}>
-              {p}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Problem Category & Type */}
-      <Text style={styles.label}>Problem Category</Text>
-      <TextInput
-        style={styles.input}
-        value={category}
-        onChangeText={setCategory}
-        placeholder="Mechanical, Electrical, Pneumatic, etc."
-        placeholderTextColor={COLORS.placeholder}
-      />
-
-      <Text style={styles.label}>Problem Type</Text>
-      <TextInput
-        style={styles.input}
-        value={problemType}
-        onChangeText={setProblemType}
-        placeholder="E.g. Belt slip, Overheating, Jammed"
-        placeholderTextColor={COLORS.placeholder}
-      />
-
-      {/* Problem Description */}
-      <Text style={styles.label}>Description</Text>
-      <TextInput
-        style={[styles.input, styles.textArea]}
-        value={description}
-        onChangeText={setDescription}
-        placeholder="Enter breakdown details..."
-        placeholderTextColor={COLORS.placeholder}
-        multiline
-        numberOfLines={4}
-      />
-
-      {/* Defect Photo Attachments */}
-      <Text style={styles.label}>Defect Photo</Text>
-      <View style={styles.photoActions}>
-        <TouchableOpacity style={styles.photoButton} onPress={handlePickImage}>
-          <Text style={styles.photoButtonText}>📷 Take Photo</Text>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.photoButton} onPress={handleChooseLibrary}>
-          <Text style={styles.photoButtonText}>🖼️ Choose Gallery</Text>
-        </TouchableOpacity>
+        <Text style={styles.title}>Breakdown Entry</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      {imageUri && (
-        <View style={styles.previewContainer}>
-          <Image source={{ uri: imageUri }} style={styles.imagePreview} />
-          <TouchableOpacity style={styles.removePhoto} onPress={() => setImageUri(null)}>
-            <Text style={styles.removeText}>Remove Photo</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <GlassCard style={styles.section}>
+          <Text style={styles.sectionTitle}><Ionicons name="time" size={16}/>  When</Text>
+          <View style={styles.row}>
+            <PremiumInput label="Start Date" value={date} onChangeText={setDate} style={{ flex: 1, marginRight: 8 }} required placeholder="YYYY-MM-DD" />
+            <PremiumSelect 
+              label="Shift" value={shiftId} options={SHIFTS.map(s => ({label: s.name, value: s.id}))} 
+              onSelect={handleShiftChange} style={{ flex: 1 }} required 
+            />
+          </View>
+          <View style={styles.row}>
+            <PremiumInput label="Time Start" value={timeStart} onChangeText={handleTimeStart} error={shiftError || ''} style={{ flex: 1, marginRight: 8 }} required placeholder="HH:MM" />
+            <PremiumInput label="Time End" value={timeEnd} onChangeText={setTimeEnd} style={{ flex: 1 }} required placeholder="HH:MM" />
+          </View>
+          <PremiumInput label="End Date" value={dateEnd} onChangeText={setDateEnd} required placeholder="YYYY-MM-DD" />
+          <View style={styles.durationBox}>
+            <Text style={styles.durationLabel}>Calculated Duration:</Text>
+            <Text style={styles.durationText}>{duration.txt}</Text>
+          </View>
+        </GlassCard>
 
-      {/* Submission Control */}
-      <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={loading}>
-        {loading ? (
-          <ActivityIndicator color="#FFFFFF" />
-        ) : (
-          <Text style={styles.submitButtonText}>
-            {isOnline ? 'SUBMIT BREAKDOWN' : 'SAVE OFFLINE DRAFT'}
-          </Text>
-        )}
-      </TouchableOpacity>
-    </ScrollView>
+        <GlassCard style={styles.section}>
+          <Text style={styles.sectionTitle}><Ionicons name="settings" size={16}/>  Machine Details</Text>
+          <PremiumSelect label="Machine Type" value={departmentId} options={DEPARTMENTS.map(d => ({label: d, value: d}))} onSelect={setDepartmentId} required />
+          <PremiumSelect label="Machine Name" value={machineId} options={machineNames.map(m => ({label: m, value: m}))} onSelect={setMachineId} required disabled={!departmentId} />
+          <PremiumSelect label="Unit / Section" value={unitId} options={unitList.map(u => ({label: u, value: u}))} onSelect={setUnitId} required={unitList.length > 0} disabled={unitList.length === 0} />
+        </GlassCard>
+
+        <GlassCard style={styles.section}>
+          <Text style={styles.sectionTitle}><Ionicons name="alert-circle" size={16}/>  Problem Details</Text>
+          <View style={styles.row}>
+            <PremiumSelect label="Problem Type" value={problemCategoryId} options={PROBLEM_TYPES.map(p => ({label: p, value: p}))} onSelect={setProblemCategoryId} style={{ flex: 1, marginRight: 8 }} required />
+            <PremiumSelect label="Category" value={categoryId} options={CATEGORIES.map(c => ({label: c, value: c}))} onSelect={setCategoryId} style={{ flex: 1 }} required />
+          </View>
+          <PremiumInput label="Problem Reported By" value={problemReported} onChangeText={setProblemReported} placeholder="Optional" />
+          <PremiumInput label="Description of Problem" value={problemDescription} onChangeText={setProblemDescription} required multiline maxLength={300} placeholder="What happened..." />
+          <PremiumInput label="Action Taken" value={actionTaken} onChangeText={setActionTaken} required multiline maxLength={300} placeholder="What was done to fix it..." />
+          <PremiumInput label="Root Cause" value={rootCause} onChangeText={setRootCause} multiline maxLength={200} placeholder="Optional root cause..." />
+        </GlassCard>
+
+        <GlassCard style={styles.section}>
+          <Text style={styles.sectionTitle}><Ionicons name="people" size={16}/>  Personnel & Extras</Text>
+          <View style={styles.row}>
+            <PremiumSelect label="Attended By" value={attendedBy} options={TECHNICIANS.map(t => ({label: t, value: t}))} onSelect={setAttendedBy} style={{ flex: 1, marginRight: 8 }} required />
+            <PremiumSelect label="Submitted By" value={submittedBy} options={TECHNICIANS.map(t => ({label: t, value: t}))} onSelect={setSubmittedBy} style={{ flex: 1 }} required />
+          </View>
+          <PremiumMultiSelect label="Additional Team Members" values={additionalTeam} options={TECHNICIANS.map(t => ({label: t, value: t}))} onSelect={setAdditionalTeam} placeholder="Select co-workers..." />
+          <PremiumInput label="Spares Consumed" value={spareConsumed} onChangeText={setSpareConsumed} multiline placeholder="e.g. Bearing 6205 x2" />
+          <PremiumInput label="Remarks" value={remarks} onChangeText={setRemarks} multiline placeholder="Optional notes" />
+        </GlassCard>
+
+        <GlowButton 
+          title={isSubmitting ? "Submitting..." : "Submit Maintenance Log"} 
+          onPress={handleSubmit} 
+          color={COLORS.success}
+          disabled={isSubmitting}
+          style={{ marginBottom: 40, paddingVertical: 16 }}
+        />
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
+  container: { flex: 1, backgroundColor: '#020617' },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingTop: SIZES.padding * 2.5, paddingBottom: SIZES.padding, paddingHorizontal: SIZES.padding,
+    backgroundColor: 'rgba(15, 23, 42, 0.9)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)'
   },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  title: {
-    ...TYPOGRAPHY.h1,
-    marginBottom: 20,
-    color: COLORS.primary,
-  },
-  label: {
-    ...TYPOGRAPHY.bodyMuted,
-    color: COLORS.text,
-    marginVertical: 8,
-    fontWeight: '600',
-  },
-  scannedBox: {
-    backgroundColor: COLORS.card,
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    marginBottom: 12,
-  },
-  scannedText: {
-    color: COLORS.primary,
-    fontWeight: 'bold',
-  },
-  pickerContainer: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  machineChip: {
-    backgroundColor: COLORS.card,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  activeMachineChip: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  machineChipText: {
-    color: COLORS.textMuted,
-    fontSize: 13,
-  },
-  activeMachineChipText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-  tabsRow: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  tabButton: {
-    flex: 1,
-    backgroundColor: COLORS.card,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-    marginRight: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  activeTabButton: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  tabButtonText: {
-    color: COLORS.textMuted,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  activeTabButtonText: {
-    color: '#FFFFFF',
-  },
-  input: {
-    backgroundColor: COLORS.card,
-    borderRadius: 8,
-    padding: 12,
-    color: COLORS.text,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 12,
-    fontSize: 14,
-  },
-  textArea: {
-    height: 100,
-    textAlignVertical: 'top',
-  },
-  photoActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  photoButton: {
-    flex: 1,
-    backgroundColor: COLORS.card,
-    borderRadius: 8,
-    padding: 12,
-    alignItems: 'center',
-    marginHorizontal: 4,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  photoButtonText: {
-    color: COLORS.text,
-    fontSize: 13,
-  },
-  previewContainer: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  imagePreview: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    resizeMode: 'cover',
-  },
-  removePhoto: {
-    padding: 8,
-    marginTop: 8,
-  },
-  removeText: {
-    color: COLORS.danger,
-    fontSize: 13,
-  },
-  submitButton: {
-    backgroundColor: COLORS.primary,
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  submitButtonText: {
-    ...TYPOGRAPHY.buttonText,
-  },
+  backBtn: { padding: 8 },
+  title: { color: COLORS.text, fontSize: 16, fontWeight: 'bold' },
+  scroll: { padding: SIZES.padding },
+  section: { padding: SIZES.padding, marginBottom: 20 },
+  sectionTitle: { color: COLORS.primary, fontSize: 13, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 },
+  row: { flexDirection: 'row' },
+  durationBox: { backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.3)' },
+  durationLabel: { color: COLORS.warning, fontSize: 10, textTransform: 'uppercase', fontWeight: 'bold' },
+  durationText: { color: COLORS.warning, fontSize: 18, fontWeight: 'bold', marginTop: 4 },
 });

@@ -147,7 +147,6 @@ async function main() {
   // ── 1. PLANT ────────────────────────────────────────────────────────────
   console.log('📍 Seeding Plants...');
   const plants = [
-    { name: 'Daman Plant',  code: 'DAMAN',  address: 'Daman, India' },
     { name: 'Pune Plant',   code: 'PUNE',   address: 'Pune, India' },
     { name: 'Chakan Plant', code: 'CHAKAN', address: 'Chakan, Pune, India' },
   ];
@@ -161,7 +160,7 @@ async function main() {
     plantMap[p.code] = plant.id;
     console.log(`  ✓ Plant: ${p.name}`);
   }
-  const damanPlantId = plantMap['DAMAN'];
+  const punePlantId = plantMap['PUNE'];
 
   // ── 2. ROLES ─────────────────────────────────────────────────────────────
   console.log('\n👤 Seeding Roles...');
@@ -174,14 +173,28 @@ async function main() {
     { name: 'Viewer',      code: 'viewer',      description: 'Read-only access' },
   ];
   const roleMap: Record<string, string> = {};
+  const existingRoles = await prisma.role.findMany();
   for (const r of roles) {
-    const role = await prisma.role.upsert({
-      where: { code: r.code },
-      update: { name: r.name, description: r.description },
-      create: r,
-    });
-    roleMap[r.code] = role.id;
-    console.log(`  ✓ Role: ${r.name}`);
+    const existing = existingRoles.find(
+      ex => ex.code.toLowerCase() === r.code.toLowerCase() || 
+            ex.name.toLowerCase() === r.name.toLowerCase()
+    );
+    let role;
+    if (existing) {
+      role = await prisma.role.update({
+        where: { id: existing.id },
+        data: {
+          description: existing.description || r.description,
+        }
+      });
+    } else {
+      role = await prisma.role.create({
+        data: r
+      });
+    }
+    roleMap[r.code.toLowerCase()] = role.id;
+    roleMap[role.code.toLowerCase()] = role.id;
+    console.log(`  ✓ Role: ${role.name} (${role.code})`);
   }
 
   // ── 3. DEFAULT SUPERADMIN USER ───────────────────────────────────────────
@@ -195,7 +208,7 @@ async function main() {
       email: 'admin@parksons.com',
       passwordHash,
       roleId: roleMap['superadmin'],
-      plantId: damanPlantId,
+      plantId: punePlantId,
       isActive: true,
     },
   });
@@ -324,9 +337,9 @@ async function main() {
 
     // Department
     const dept = await prisma.department.upsert({
-      where: { plantId_code: { plantId: damanPlantId, code: deptName } },
+      where: { plantId_code: { plantId: punePlantId, code: deptName } },
       update: { name: deptName },
-      create: { name: deptName, code: deptName, plantId: damanPlantId },
+      create: { name: deptName, code: deptName, plantId: punePlantId },
     });
 
     // Section (1 section per department matching GAS structure)

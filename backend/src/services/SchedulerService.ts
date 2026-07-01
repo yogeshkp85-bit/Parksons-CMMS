@@ -87,4 +87,84 @@ export class SchedulerService {
   async runScheduledJobs() {
     return await this.executeTriggerJobs();
   }
+
+  /**
+   * Automatically generate PM Schedules for the next 30 days for all active tasks.
+   */
+  async autoGeneratePMSchedules() {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    
+    try {
+      const activeTasks = await prisma.pmTask.findMany({
+        where: { isActive: true, deletedAt: null },
+        include: { frequency: true }
+      });
+
+      const now = new Date();
+      const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      let createdCount = 0;
+
+      for (const task of activeTasks) {
+        if (!task.frequency) continue;
+
+        const machines = await prisma.machine.findMany({
+          where: task.machineCategoryId ? { machineCategoryId: task.machineCategoryId } : {}
+        });
+
+        for (const machine of machines) {
+          // Check the latest schedule for this machine & task
+          const latestSchedule = await prisma.pmSchedule.findFirst({
+            where: { pmTaskId: task.id, machineId: machine.id },
+            orderBy: { dueDate: 'desc' }
+          });
+
+          let nextDueDate = new Date(now);
+          if (latestSchedule) {
+            nextDueDate = new Date(latestSchedule.dueDate);
+            nextDueDate.setDate(nextDueDate.getDate() + task.frequency.intervalDays);
+          } else {
+            // If no previous schedule, start from today + interval
+            nextDueDate.setDate(nextDueDate.getDate() + task.frequency.intervalDays);
+          }
+
+          // Generate schedules up to 30 days in advance
+          while (nextDueDate <= thirtyDaysFromNow) {
+            // Check if it already exists to avoid duplicates (just in case)
+            const exists = await prisma.pmSchedule.findFirst({
+              where: {
+                pmTaskId: task.id,
+                machineId: machine.id,
+                dueDate: {
+                  gte: new Date(nextDueDate.getFullYear(), nextDueDate.getMonth(), nextDueDate.getDate()),
+                  lt: new Date(nextDueDate.getFullYear(), nextDueDate.getMonth(), nextDueDate.getDate() + 1)
+                }
+              }
+            });
+
+            if (!exists) {
+              await prisma.pmSchedule.create({
+                data: {
+                  machineId: machine.id,
+                  pmTaskId: task.id,
+                  dueDate: new Date(nextDueDate),
+                  status: 'PENDING'
+                }
+              });
+              createdCount++;
+            }
+            nextDueDate.setDate(nextDueDate.getDate() + task.frequency.intervalDays);
+          }
+        }
+      }
+      console.log(`Auto-generated ${createdCount} PM schedules.`);
+      return { success: true, createdCount };
+    } catch (err) {
+      console.error('Error auto-generating PM schedules', err);
+      throw err;
+    } finally {
+      await prisma.$disconnect();
+    }
+  }
 }

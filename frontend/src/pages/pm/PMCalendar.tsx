@@ -11,14 +11,16 @@ export const PMCalendar: React.FC = () => {
   const year = currentDate.getFullYear();
 
   useEffect(() => {
-    fetchMonthSchedules();
-  }, [month, year]);
+    fetchSchedules();
+  }, [currentDate]);
 
-  const fetchMonthSchedules = async () => {
+  const fetchSchedules = async () => {
     try {
       setLoading(true);
       const res = await api.get(`/pm/compliance?month=${month}&year=${year}`);
-      setSchedules(res.data?.data?.schedules || []);
+      const data = res.data?.data?.schedules || [];
+      // Filter out deleted schedules just in case
+      setSchedules(data.filter((s: any) => !s.deletedAt));
     } catch (err) {
       console.error('Failed to load calendar data', err);
     } finally {
@@ -60,8 +62,12 @@ export const PMCalendar: React.FC = () => {
       
       // Get schedules for this specific day
       const daySchedules = schedules.filter(s => {
+        if (!s.dueDate) return false;
         const d = new Date(s.dueDate);
-        return d.getDate() === day && d.getMonth() + 1 === month && d.getFullYear() === year;
+        // Compare using local timezone date strings to avoid offset bugs
+        const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const cellDateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        return localDateStr === cellDateStr || s.dueDate.startsWith(cellDateStr);
       });
 
       cells.push(

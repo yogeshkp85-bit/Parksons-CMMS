@@ -123,7 +123,7 @@ export class UserController {
         select: { id: true, name: true, code: true }
       }).catch(() => [] as { id: string; name: string; code: string }[]);
       const plants = dbPlants.length > 0 ? dbPlants : [
-        { id: 'daman-plant', name: 'Daman Plant', code: 'DAMAN' }
+        { id: 'pune-plant', name: 'Pune Plant', code: 'PUNE' }
       ];
 
       res.json({ success: true, data: { roles, plants } });
@@ -140,7 +140,7 @@ export class UserController {
             { id: 'technician', name: 'Technician', code: 'technician' },
             { id: 'viewer', name: 'Viewer', code: 'viewer' }
           ],
-          plants: [{ id: 'daman-plant', name: 'Daman Plant', code: 'DAMAN' }]
+          plants: [{ id: 'pune-plant', name: 'Pune Plant', code: 'PUNE' }]
         }
       });
     }

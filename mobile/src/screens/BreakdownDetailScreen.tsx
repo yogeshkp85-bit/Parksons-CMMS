@@ -1,336 +1,187 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput } from 'react-native';
-import NetInfo from '@react-native-community/netinfo';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS, SIZES } from '../components/Theme';
+import { GlassCard, Badge } from '../components/premium';
 import api from '../services/api';
-import { getDB } from '../services/db';
-import { COLORS, TYPOGRAPHY } from '../components/Theme';
 
-export default function BreakdownDetailScreen({ route, navigation }: { route: any; navigation: any }) {
-  const { breakdownId } = route.params;
-  const [isOnline, setIsOnline] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const [breakdown, setBreakdown] = useState<any>(null);
-  
-  const [actionTaken, setActionTaken] = useState('');
-  const [rootCause, setRootCause] = useState('');
-  const [updating, setUpdating] = useState(false);
+export default function BreakdownDetailScreen({ route, navigation }: any) {
+  const { breakdown: initialBreakdown } = route.params;
+  const [breakdown, setBreakdown] = useState<any>(initialBreakdown);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener(state => {
-      setIsOnline(!!state.isConnected);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const loadDetails = async () => {
-    setLoading(true);
-    
-    // Offline Details Fallback
-    if (!isOnline || breakdownId.length < 10) { // Local drafts have short temp IDs
-      const db = getDB();
-      const local = db.getFirstSync<any>(
-        `SELECT * FROM offline_breakdowns WHERE id = ?`,
-        [breakdownId]
-      );
-      if (local) {
-        setBreakdown({
-          breakdownNumber: `DRAFT-${local.id.substring(0, 5)}`,
-          machine: { name: local.machineName },
-          shift: local.shift,
-          category: { name: local.category },
-          problemCategory: { name: local.problemType },
-          problemDescription: local.description,
-          status: local.status,
-          startTime: local.createdAt,
-          priority: local.priority,
-        });
-      }
-      setLoading(false);
-      return;
+    if (initialBreakdown?.refId) {
+      setLoading(true);
+      api.get('/breakdowns/pending').then(res => {
+        const allLogs = res.data?.data?.all || [];
+        const full = allLogs.find((b: any) => b.refId === initialBreakdown.refId);
+        if (full) {
+          setBreakdown({ ...initialBreakdown, ...full, minutes: full.duration || initialBreakdown.minutes });
+        }
+      }).catch(err => console.log('Error fetching full breakdown:', err))
+        .finally(() => setLoading(false));
     }
-
-    try {
-      // Find breakdown by listing pending/reports or fetching directly
-      const response = await api.get('/breakdowns/pending');
-      const list = response.data.data || [];
-      const item = list.find((b: any) => b.id === breakdownId);
-      
-      if (item) {
-        setBreakdown(item);
-        setActionTaken(item.actionTakenDescription || '');
-        setRootCause(item.rootCauseDescription || '');
-      } else {
-        Alert.alert('Not Found', 'Breakdown detail not found on the server (it might be approved already).');
-        navigation.goBack();
-      }
-    } catch (e: any) {
-      console.warn('Failed to load breakdown online details', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadDetails();
-  }, [isOnline, breakdownId]);
-
-  const handleUpdateProgress = async () => {
-    if (!isOnline) {
-      Alert.alert('Offline', 'Cannot update status while offline.');
-      return;
-    }
-
-    setUpdating(true);
-    try {
-      // Move status to IN_PROGRESS
-      await api.put('/breakdowns/status', {
-        refId: breakdown.breakdownNumber,
-        status: 'IN_PROGRESS',
-      });
-      
-      Alert.alert('Success', 'Status updated to IN_PROGRESS.');
-      loadDetails();
-    } catch (err: any) {
-      Alert.alert('Update Failed', err.response?.data?.message || 'Failed to update status.');
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  const handleSubmitForApproval = async () => {
-    if (!isOnline) {
-      Alert.alert('Offline', 'Cannot submit approval requests while offline.');
-      return;
-    }
-    if (!actionTaken || !rootCause) {
-      Alert.alert('Validation Error', 'Please specify action taken and root cause.');
-      return;
-    }
-
-    setUpdating(true);
-    try {
-      // Approve/Complete route setup or update description
-      await api.post('/approvals/approve', {
-        refId: breakdown.breakdownNumber,
-        actionTaken,
-        rootCause,
-      });
-
-      Alert.alert('Submitted', 'Breakdown submitted for supervisor approval.', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
-    } catch (err: any) {
-      Alert.alert('Submission Failed', err.response?.data?.message || 'Failed to submit approval.');
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
-  }
+  }, [initialBreakdown]);
 
   if (!breakdown) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>Failed to load breakdown details.</Text>
+        <Text style={{ color: COLORS.textMuted }}>Details not available.</Text>
       </View>
     );
   }
 
-  const isPendingSync = breakdown.status === 'PENDING_SYNC';
-
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      {/* Title block */}
-      <View style={styles.card}>
-        <View style={styles.headerRow}>
-          <Text style={styles.refId}>{breakdown.breakdownNumber}</Text>
-          <Text style={[styles.statusTag, { color: breakdown.status === 'APPROVED' ? COLORS.success : COLORS.warning }]}>
-            {breakdown.status}
-          </Text>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+        </TouchableOpacity>
+        <Text style={styles.title}>Breakdown Log</Text>
+        <View style={{ width: 40, alignItems: 'center' }}>
+          {loading && <ActivityIndicator size="small" color={COLORS.primary} />}
         </View>
-        <Text style={styles.machineTitle}>Machine: {breakdown.machine?.name || 'Unknown'}</Text>
-        <Text style={styles.dateText}>Logged: {new Date(breakdown.startTime).toLocaleString()}</Text>
       </View>
 
-      {/* Details Section */}
-      <Text style={styles.sectionLabel}>Problem Specification</Text>
-      <View style={styles.card}>
-        <Text style={styles.metaLabel}>Shift</Text>
-        <Text style={styles.metaVal}>{breakdown.shift}</Text>
-
-        <View style={styles.divider} />
-
-        <Text style={styles.metaLabel}>Category</Text>
-        <Text style={styles.metaVal}>{breakdown.category?.name || 'General'}</Text>
-
-        <View style={styles.divider} />
-
-        <Text style={styles.metaLabel}>Problem Type</Text>
-        <Text style={styles.metaVal}>{breakdown.problemCategory?.name || 'General Failure'}</Text>
-
-        <View style={styles.divider} />
-
-        <Text style={styles.metaLabel}>Description</Text>
-        <Text style={styles.descriptionText}>{breakdown.problemDescription}</Text>
-      </View>
-
-      {/* Action updates form */}
-      {!isPendingSync && breakdown.status !== 'APPROVED' && (
-        <>
-          <Text style={styles.sectionLabel}>Technician Update Actions</Text>
-          <View style={styles.card}>
-            {breakdown.status === 'PENDING_REVIEW' ? (
-              <TouchableOpacity style={styles.updateButton} onPress={handleUpdateProgress} disabled={updating}>
-                {updating ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.buttonText}>START ATTENDING (IN_PROGRESS)</Text>
-                )}
-              </TouchableOpacity>
-            ) : (
-              <>
-                <Text style={styles.metaLabel}>Root Cause Analysis</Text>
-                <TextInput
-                  style={styles.input}
-                  value={rootCause}
-                  onChangeText={setRootCause}
-                  placeholder="What caused the failure?"
-                  placeholderTextColor={COLORS.placeholder}
-                />
-
-                <Text style={styles.metaLabel}>Action Taken Details</Text>
-                <TextInput
-                  style={styles.input}
-                  value={actionTaken}
-                  onChangeText={setActionTaken}
-                  placeholder="How did you resolve it?"
-                  placeholderTextColor={COLORS.placeholder}
-                />
-
-                <TouchableOpacity 
-                  style={[styles.updateButton, { backgroundColor: COLORS.success }]} 
-                  onPress={handleSubmitForApproval} 
-                  disabled={updating}
-                >
-                  {updating ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.buttonText}>SUBMIT FOR APPROVAL</Text>
-                  )}
-                </TouchableOpacity>
-              </>
-            )}
+      <ScrollView contentContainerStyle={styles.scroll}>
+        
+        {/* IDENTIFICATION */}
+        <GlassCard style={styles.section} glowColor={COLORS.primary}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.refId}>{breakdown.refId || 'N/A'}</Text>
+            <Badge label={breakdown.category || 'General'} color={COLORS.primary} />
           </View>
-        </>
-      )}
-    </ScrollView>
+          <Text style={styles.machineTitle}>{breakdown.machineName || 'Unknown Machine'}</Text>
+          <Text style={styles.subtext}>{breakdown.machineType || ''} {breakdown.unit ? `• ${breakdown.unit}` : ''}</Text>
+        </GlassCard>
+
+        {/* TIMING */}
+        <GlassCard style={styles.section}>
+          <Text style={styles.sectionTitle}><Ionicons name="time" size={16}/>  Timing & Shift</Text>
+          <View style={styles.metaRow}>
+            <View style={styles.metaCol}>
+              <Text style={styles.metaLabel}>Date</Text>
+              <Text style={styles.metaVal}>{breakdown.date || '--'}</Text>
+            </View>
+            <View style={styles.metaCol}>
+              <Text style={styles.metaLabel}>Shift</Text>
+              <Text style={styles.metaVal}>{breakdown.shift || '--'}</Text>
+            </View>
+          </View>
+          <View style={styles.metaRow}>
+            <View style={styles.metaCol}>
+              <Text style={styles.metaLabel}>Start Time</Text>
+              <Text style={styles.metaVal}>{breakdown.timeStart || '--'}</Text>
+            </View>
+            <View style={styles.metaCol}>
+              <Text style={styles.metaLabel}>End Time</Text>
+              <Text style={styles.metaVal}>{breakdown.timeEnd || '--'}</Text>
+            </View>
+          </View>
+          <View style={styles.durationBox}>
+            <Text style={styles.durationLabel}>Total Downtime</Text>
+            <Text style={styles.durationText}>{breakdown.minutes || 0} mins</Text>
+          </View>
+        </GlassCard>
+
+        {/* PROBLEM SPECIFICATION */}
+        <GlassCard style={styles.section} glowColor={COLORS.danger}>
+          <Text style={styles.sectionTitle}><Ionicons name="alert-circle" size={16}/>  Problem Specification</Text>
+          <Text style={styles.metaLabel}>Problem Type</Text>
+          <Text style={styles.metaVal}>{breakdown.problemType || '--'}</Text>
+          
+          <Text style={styles.metaLabel}>Description</Text>
+          <Text style={styles.descriptionText}>{breakdown.description || 'No description provided.'}</Text>
+          
+          {breakdown.problemReported && (
+            <>
+              <Text style={[styles.metaLabel, { marginTop: 12 }]}>Reported By</Text>
+              <Text style={styles.metaVal}>{breakdown.problemReported}</Text>
+            </>
+          )}
+        </GlassCard>
+
+        {/* ACTION & RESOLUTION */}
+        {(breakdown.actionTaken || breakdown.rootCause) && (
+          <GlassCard style={styles.section} glowColor={COLORS.success}>
+            <Text style={styles.sectionTitle}><Ionicons name="build" size={16}/>  Action & Resolution</Text>
+            
+            {breakdown.actionTaken ? (
+              <>
+                <Text style={styles.metaLabel}>Action Taken</Text>
+                <Text style={styles.descriptionText}>{breakdown.actionTaken}</Text>
+              </>
+            ) : null}
+
+            {breakdown.rootCause ? (
+              <>
+                {breakdown.actionTaken && <View style={styles.divider} />}
+                <Text style={styles.metaLabel}>Root Cause</Text>
+                <Text style={styles.descriptionText}>{breakdown.rootCause}</Text>
+              </>
+            ) : null}
+
+            {breakdown.spareConsumed ? (
+              <>
+                <View style={styles.divider} />
+                <Text style={styles.metaLabel}>Spares Consumed</Text>
+                <Text style={styles.descriptionText}>{breakdown.spareConsumed}</Text>
+              </>
+            ) : null}
+          </GlassCard>
+        )}
+
+        {/* PERSONNEL */}
+        <GlassCard style={styles.section}>
+          <Text style={styles.sectionTitle}><Ionicons name="people" size={16}/>  Personnel</Text>
+          <View style={styles.metaRow}>
+            <View style={styles.metaCol}>
+              <Text style={styles.metaLabel}>Attended By</Text>
+              <Text style={styles.metaVal}>{breakdown.attendedBy || '--'}</Text>
+            </View>
+            <View style={styles.metaCol}>
+              <Text style={styles.metaLabel}>Additional Team</Text>
+              <Text style={styles.metaVal}>{breakdown.additionalTeam || '--'}</Text>
+            </View>
+          </View>
+        </GlassCard>
+
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
+  container: { flex: 1, backgroundColor: '#020617' },
+  centerContainer: { flex: 1, backgroundColor: '#020617', justifyContent: 'center', alignItems: 'center' },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingTop: SIZES.padding * 2.5, paddingBottom: SIZES.padding, paddingHorizontal: SIZES.padding,
+    backgroundColor: 'rgba(15, 23, 42, 0.9)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)'
   },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  centerContainer: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorText: {
-    color: COLORS.textMuted,
-    fontSize: 15,
-  },
-  card: {
-    backgroundColor: COLORS.card,
-    borderRadius: 8,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 16,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  refId: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-  },
-  statusTag: {
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
-  machineTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 4,
-  },
-  dateText: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-  },
-  sectionLabel: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  metaLabel: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginBottom: 4,
-  },
-  metaVal: {
-    fontSize: 14,
-    color: COLORS.text,
-    marginBottom: 12,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: 8,
-  },
-  descriptionText: {
-    fontSize: 14,
-    color: COLORS.text,
-    lineHeight: 20,
-  },
-  updateButton: {
-    backgroundColor: COLORS.primary,
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonText: {
-    ...TYPOGRAPHY.buttonText,
-  },
-  input: {
-    backgroundColor: COLORS.background,
-    borderRadius: 8,
-    padding: 12,
-    color: COLORS.text,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 16,
-    fontSize: 14,
-  },
+  backBtn: { padding: 8 },
+  title: { color: COLORS.text, fontSize: 16, fontWeight: 'bold' },
+  scroll: { padding: SIZES.padding, paddingBottom: 40 },
+  
+  section: { padding: SIZES.padding, marginBottom: 16 },
+  sectionTitle: { color: COLORS.primary, fontSize: 13, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 },
+  
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  refId: { color: COLORS.text, fontSize: 18, fontWeight: 'bold' },
+  machineTitle: { color: COLORS.text, fontSize: 18, fontWeight: '600', marginBottom: 4 },
+  subtext: { color: COLORS.textMuted, fontSize: 13 },
+  
+  metaRow: { flexDirection: 'row', marginBottom: 16 },
+  metaCol: { flex: 1 },
+  metaLabel: { color: COLORS.textMuted, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  metaVal: { color: COLORS.text, fontSize: 14, fontWeight: '500' },
+  
+  descriptionText: { color: COLORS.text, fontSize: 14, lineHeight: 22, backgroundColor: 'rgba(255,255,255,0.02)', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginVertical: 16 },
+  
+  durationBox: { backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.2)' },
+  durationLabel: { color: COLORS.danger, fontSize: 10, textTransform: 'uppercase', fontWeight: 'bold' },
+  durationText: { color: COLORS.danger, fontSize: 18, fontWeight: 'bold', marginTop: 4 },
 });

@@ -40,11 +40,11 @@ const MASTER_SECTIONS: MasterSection[] = [
       {
         id: 'plant',
         label: 'Plants',
-        subtitle: 'Manage plant locations (Daman, Pune, Chakan)',
+        subtitle: 'Manage plant locations (Pune, Chakan)',
         modelName: 'plant',
         fields: [
-          { key: 'name',    label: 'Plant Name',    type: 'text',   required: true,  placeholder: 'e.g. Daman Plant' },
-          { key: 'code',    label: 'Plant Code',    type: 'text',   required: true,  placeholder: 'e.g. DAMAN' },
+          { key: 'name',    label: 'Plant Name',    type: 'text',   required: true,  placeholder: 'e.g. Pune Plant' },
+          { key: 'code',    label: 'Plant Code',    type: 'text',   required: true,  placeholder: 'e.g. PUNE' },
           { key: 'address', label: 'Address',       type: 'textarea', placeholder: 'Plant address' },
         ],
       },

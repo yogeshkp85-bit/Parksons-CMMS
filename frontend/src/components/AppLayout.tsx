@@ -285,7 +285,7 @@ export const AppLayout: React.FC = () => {
             <div className="hidden sm:flex items-center gap-4 text-xs font-medium text-gray-400">
               <div className="flex items-center gap-2">
                 <MapPin size={13} className="text-emerald-500" />
-                <span>Plant: Daman Assembly</span>
+                <span>Plant: Pune Plant</span>
                 <span className="text-white/20">/</span>
                 <span className="text-emerald-400 font-semibold">{user?.role?.name} Interface</span>
               </div>
@@ -412,7 +412,7 @@ export const AppLayout: React.FC = () => {
                     <div className="p-2 space-y-1">
                       <div className="px-2 py-1.5 text-gray-400 flex items-center gap-2">
                         <MapPin size={13} className="text-cyan-400" />
-                        <span>Daman Plant Location</span>
+                        <span>Pune Plant Location</span>
                       </div>
                       <div className="px-2 py-1.5 text-gray-400 flex items-center gap-2">
                         <Settings size={13} className="text-cyan-400" />

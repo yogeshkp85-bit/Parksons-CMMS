@@ -36,6 +36,8 @@ router.get('/breakdowns/pending', authorize('Approve'), (req, res) => breakdownC
 router.post('/breakdowns/create', authorize('Create'), (req, res) => breakdownCtrl.create(req, res));
 router.put('/breakdowns/update', authorize('Edit'), (req, res) => breakdownCtrl.update(req, res));
 router.put('/breakdowns/status', authorize('Edit'), (req, res) => breakdownCtrl.updateStatus(req, res));
+router.delete('/breakdowns/:id', authorize('Approve'), (req, res) => breakdownCtrl.deleteBreakdown(req, res));
+router.put('/breakdowns/:id', authorize('Approve'), (req, res) => breakdownCtrl.editApprovedBreakdown(req, res));
 
 // ---------------------------------------------------------
 // 2. Machines

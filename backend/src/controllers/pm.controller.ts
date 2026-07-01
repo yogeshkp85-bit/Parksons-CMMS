@@ -107,7 +107,7 @@ export const pmController = {
     try {
       const schedules = await prisma.pmSchedule.findMany({
         include: {
-          machine: { include: { unit: { include: { section: { include: { department: true } } } } } },
+          machine: true,
           pmTask: { include: { frequency: true } },
           completedBy: true
         },

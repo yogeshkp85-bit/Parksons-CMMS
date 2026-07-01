@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, FileDown, Printer, Filter } from 'lucide-react';
+import { FileText, FileDown, Printer, Filter, Edit2, Trash2, X } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -36,6 +37,10 @@ export const Reports: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [reportType, setReportType] = useState('pareto'); // pareto, mttr, mtbf, table
   const [dateFilter, setDateFilter] = useState('all');
+  const { permissions } = useAuth();
+  const canManage = permissions.includes('Approve');
+  const [editingRow, setEditingRow] = useState<any>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   
 
   useEffect(() => {
@@ -60,6 +65,31 @@ export const Reports: React.FC = () => {
       alert('Failed to load reports', 'ERROR');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingId) return;
+    try {
+      await api.delete(`/breakdowns/${deletingId}`);
+      alert('Breakdown deleted successfully');
+      setDeletingId(null);
+      fetchData(); // Refresh data
+    } catch (err) {
+      alert('Failed to delete breakdown');
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRow) return;
+    try {
+      await api.put(`/breakdowns/${editingRow.refId || editingRow.Ref_ID}`, editingRow);
+      alert('Breakdown updated successfully');
+      setEditingRow(null);
+      fetchData(); // Refresh data
+    } catch (err) {
+      alert('Failed to update breakdown');
     }
   };
 
@@ -252,6 +282,7 @@ export const Reports: React.FC = () => {
                         <th className="p-3">Machine</th>
                         <th className="p-3">Problem</th>
                         <th className="p-3 text-right">Downtime (Min)</th>
+                        {canManage && <th className="p-3 text-right">Actions</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
@@ -262,6 +293,18 @@ export const Reports: React.FC = () => {
                           <td className="p-3 font-medium text-cyan-400">{r.machineName || r.Machine_Name}</td>
                           <td className="p-3 text-xs">{r.problemType || r.Problem_Type}</td>
                           <td className="p-3 text-right font-mono text-rose-400">{r.minutes || r.Minutes}</td>
+                          {canManage && (
+                            <td className="p-3 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button onClick={() => setEditingRow(r)} className="p-1.5 text-gray-400 hover:text-cyan-400 bg-white/5 rounded-lg hover:bg-cyan-500/10 transition-colors" title="Edit">
+                                  <Edit2 size={16} />
+                                </button>
+                                <button onClick={() => setDeletingId(r.refId || r.Ref_ID)} className="p-1.5 text-gray-400 hover:text-rose-400 bg-white/5 rounded-lg hover:bg-rose-500/10 transition-colors" title="Delete">
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -272,6 +315,67 @@ export const Reports: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* Edit Modal */}
+      {editingRow && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f172a] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-scale-in">
+            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
+              <h2 className="text-lg font-bold text-white">Edit Historical Record</h2>
+              <button onClick={() => setEditingRow(null)} className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1">Start Time (HH:MM AM/PM)</label>
+                  <input type="text" value={editingRow.timeStart || ''} onChange={(e) => setEditingRow({...editingRow, timeStart: e.target.value})} className="w-full bg-[#0b0f19] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500/50" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1">End Time (HH:MM AM/PM)</label>
+                  <input type="text" value={editingRow.timeEnd || ''} onChange={(e) => setEditingRow({...editingRow, timeEnd: e.target.value})} className="w-full bg-[#0b0f19] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500/50" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1">Downtime Minutes</label>
+                <input type="number" value={editingRow.minutes || editingRow.Minutes || ''} onChange={(e) => setEditingRow({...editingRow, minutes: e.target.value})} className="w-full bg-[#0b0f19] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500/50" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1">Action Taken</label>
+                <textarea rows={3} value={editingRow.actionTaken || ''} onChange={(e) => setEditingRow({...editingRow, actionTaken: e.target.value})} className="w-full bg-[#0b0f19] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500/50 resize-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1">Root Cause</label>
+                <textarea rows={2} value={editingRow.rootCause || ''} onChange={(e) => setEditingRow({...editingRow, rootCause: e.target.value})} className="w-full bg-[#0b0f19] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500/50 resize-none" />
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button type="button" onClick={() => setEditingRow(null)} className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-white/5 rounded-lg hover:bg-white/10 transition-colors">Cancel</button>
+                <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-cyan-600 rounded-lg hover:bg-cyan-500 transition-colors shadow-lg shadow-cyan-500/20">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingId && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f172a] border border-rose-500/20 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-in">
+            <div className="p-6 text-center">
+              <div className="w-12 h-12 rounded-full bg-rose-500/10 flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="text-rose-500" size={24} />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">Delete Historical Record?</h3>
+              <p className="text-sm text-gray-400 mb-6">This action is permanent. It will instantly recalculate KPIs. Are you sure you want to proceed?</p>
+              <div className="flex flex-col gap-2">
+                <button onClick={handleDelete} className="w-full px-4 py-2 text-sm font-bold text-white bg-rose-600 rounded-lg hover:bg-rose-500 transition-colors shadow-lg shadow-rose-500/20">Yes, Delete Record</button>
+                <button onClick={() => setDeletingId(null)} className="w-full px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-white/5 rounded-lg hover:bg-white/10 transition-colors">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

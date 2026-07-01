@@ -47,7 +47,7 @@ Enterprise-grade extensions. See MDM specification for full details.
 | HR & Attendance | Employee, Contractor, Skill Matrix, Holiday Calendar |
 | Utilities monitoring | Boiler, Compressor, Chiller, Transformer, DG |
 | AI-assisted maintenance | Failure prediction, anomaly detection |
-| Multi-plant dashboard | Aggregate KPIs across Daman, Pune, Chakan |
+| Multi-plant dashboard | Aggregate KPIs across Pune, Chakan |
 | Mobile — Play Store release | After internal testing complete |
 
 ## Reference Documents

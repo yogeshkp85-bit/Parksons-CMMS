@@ -49,11 +49,11 @@ export const Register: React.FC = () => {
           setRoles(roleList);
           setPlants(plantList);
           
-          // Preselect Technician/Viewer role and Daman plant
+          // Preselect Technician/Viewer role and Pune plant
           const defaultRole = roleList.find((r: any) => r.code === 'TECHNICIAN') || roleList[0];
           if (defaultRole) setRoleId(defaultRole.id);
           
-          const defaultPlant = plantList.find((p: any) => p.code === 'DAMAN') || plantList[0];
+          const defaultPlant = plantList.find((p: any) => p.code === 'PUNE') || plantList[0];
           if (defaultPlant) setPlantId(defaultPlant.id);
         }
       } catch (err) {

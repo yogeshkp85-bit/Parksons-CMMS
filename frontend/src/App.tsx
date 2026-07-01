@@ -180,7 +180,7 @@ function App() {
                             <div className="flex justify-between"><span className="text-gray-500">Application</span><span className="text-gray-300 font-mono">Parksons CMMS</span></div>
                             <div className="flex justify-between"><span className="text-gray-500">Version</span><span className="text-gray-300 font-mono">Phase 2.0 — MDM</span></div>
                             <div className="flex justify-between"><span className="text-gray-500">Backend</span><span className="text-gray-300 font-mono">Node.js + PostgreSQL</span></div>
-                            <div className="flex justify-between"><span className="text-gray-500">Plant</span><span className="text-gray-300 font-mono">Daman (Primary)</span></div>
+                            <div className="flex justify-between"><span className="text-gray-500">Plant</span><span className="text-gray-300 font-mono">Pune (Primary)</span></div>
                           </div>
                         </div>
                         <div className="glass-panel p-5 rounded-xl space-y-3 md:col-span-2">
